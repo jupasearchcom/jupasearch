@@ -322,6 +322,8 @@ export default function Courses() {
   const [groupAOnly, setGroupAOnly] = useState<boolean | undefined>(undefined);
   const [tuitionMin, setTuitionMin] = useState<string>("");
   const [tuitionMax, setTuitionMax] = useState<string>("");
+  const [debouncedTuitionMin, setDebouncedTuitionMin] = useState<string>("");
+  const [debouncedTuitionMax, setDebouncedTuitionMax] = useState<string>("");
   const [sortBy, setSortBy] = useState("id");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 24;
@@ -335,8 +337,25 @@ export default function Courses() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const parsedTuitionMin = tuitionMin ? parseInt(tuitionMin.replace(/\D/g, "")) : undefined;
-  const parsedTuitionMax = tuitionMax ? parseInt(tuitionMax.replace(/\D/g, "")) : undefined;
+  // Debounce tuition inputs to avoid re-render on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTuitionMin(tuitionMin);
+      setPage(1);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [tuitionMin]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTuitionMax(tuitionMax);
+      setPage(1);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [tuitionMax]);
+
+  const parsedTuitionMin = debouncedTuitionMin ? parseInt(debouncedTuitionMin.replace(/\D/g, "")) : undefined;
+  const parsedTuitionMax = debouncedTuitionMax ? parseInt(debouncedTuitionMax.replace(/\D/g, "")) : undefined;
 
   const queryInput = useMemo(() => ({
     search: debouncedSearch || undefined,
@@ -355,7 +374,7 @@ export default function Courses() {
     sortBy,
     page,
     pageSize: PAGE_SIZE,
-  }), [debouncedSearch, degreeTypes, institutions, durations, qualifications, scoringMethods, scoreGaps, fundingTypes, interviewArrangements, groupAOnly, parsedTuitionMin, parsedTuitionMax, sortBy, page]);
+  }), [debouncedSearch, degreeTypes, institutions, durations, qualifications, scoringMethods, scoreGaps, fundingTypes, interviewArrangements, groupAOnly, parsedTuitionMin, parsedTuitionMax, sortBy, page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data, isLoading } = trpc.courses.list.useQuery(queryInput);
   const courses = data?.courses ?? [];
@@ -370,10 +389,6 @@ export default function Courses() {
   const utils = trpc.useUtils();
   const addFav = trpc.favorites.add.useMutation({ onSuccess: () => utils.favorites.ids.invalidate() });
   const removeFav = trpc.favorites.remove.useMutation({ onSuccess: () => utils.favorites.ids.invalidate() });
-
-  // Choices — server or local
-  const { data: choicesData } = trpc.choices.get.useQuery(undefined, { enabled: isAuthenticated });
-  const saveChoices = trpc.choices.save.useMutation({ onSuccess: () => utils.choices.get.invalidate() });
 
   const handleToggleFavorite = useCallback((course: Course) => {
     if (isAuthenticated) {
@@ -400,31 +415,28 @@ export default function Courses() {
   }, [isAuthenticated, favoriteIds, addFav, removeFav, t]);
 
   const handleAddToChoices = useCallback((course: Course) => {
-    if (isAuthenticated) {
-      const currentChoices = choicesData?.choices ?? [];
-      if (currentChoices.length >= 20) { toast.error(t("choices.max")); return; }
-      if (currentChoices.find((c) => c.courseId === course.id)) {
-        toast.info(language === "en" ? "Already in your choices" : "已在志願列表中");
+    // Add to pending staging area (jupasearch_choices_pending)
+    const LS_PENDING = "jupasearch_choices_pending";
+    const LS_CHOICES = "jupasearch_choices";
+    try {
+      const rawPending = localStorage.getItem(LS_PENDING);
+      const pending: number[] = rawPending ? JSON.parse(rawPending) : [];
+      const rawChoices = localStorage.getItem(LS_CHOICES);
+      const choices: { courseId: number }[] = rawChoices ? JSON.parse(rawChoices) : [];
+      if (pending.includes(course.id) || choices.find((c) => c.courseId === course.id)) {
+        toast.info(language === "en" ? "Already in pending or choices" : language === "zh-CN" ? "已在待加入或志愿表中" : "已在待加入或志願表中");
         return;
       }
-      const newChoices = [...currentChoices, { courseId: course.id, rank: currentChoices.length + 1 }];
-      saveChoices.mutate({ choices: newChoices });
-    } else {
-      const LS_KEY = "jupasearch_choices";
-      try {
-        const raw = localStorage.getItem(LS_KEY);
-        const current: { courseId: number; rank: number }[] = raw ? JSON.parse(raw) : [];
-        if (current.length >= 20) { toast.error(t("choices.max")); return; }
-        if (current.find((c) => c.courseId === course.id)) {
-          toast.info(language === "en" ? "Already in your choices" : "已在志願列表中");
-          return;
-        }
-        const updated = [...current, { courseId: course.id, rank: current.length + 1 }];
-        localStorage.setItem(LS_KEY, JSON.stringify(updated));
-      } catch { /* ignore */ }
-    }
-    toast.success(t("courses.addToChoices") + `: ${course.nameZhTw}`);
-  }, [isAuthenticated, choicesData, saveChoices, t, language]);
+      localStorage.setItem(LS_PENDING, JSON.stringify([...pending, course.id]));
+    } catch { /* ignore */ }
+    const courseName = language === "zh-CN" ? (course.nameZhCn || course.nameZhTw) : language === "en" ? (course.nameEn || course.nameZhTw) : course.nameZhTw;
+    toast.success(
+      language === "en" ? `Added to pending: ${courseName}` :
+      language === "zh-CN" ? `已加入待加入区：${courseName}` :
+      `已加入待加入區：${courseName}`,
+      { description: language === "en" ? "Go to Choices page to add to your list" : language === "zh-CN" ? "前往志愿页面将其加入志愿表" : "前往志願頁面將其加入志願表" }
+    );
+  }, [language]);
 
   const clearFilters = () => {
     setSearch(""); setDebouncedSearch("");

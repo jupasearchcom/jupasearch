@@ -114,3 +114,10 @@
 - [x] #29 篩選「面試安排」更新為5個選項
 - [x] #30 更新語言翻譯和服務條款
 - [x] SEO: 修復標題長度、加入meta description
+
+## Bug Fix Batch (2026-03-30)
+- [ ] Bug 1: 文憑試成績頁面無法開啟（路由/import 問題）
+- [ ] Bug 2: 學費輸入框輸入數字後跳回頂部（onChange re-render 問題）
+- [ ] Bug 3: 課程無法加入志願（localStorage key 不一致）
+- [ ] Feature: 志願頁改為「候選課程區 → 點添加 → 志願表」流程
+- [ ] Feature: 收藏頁加入「添加到志願」按鈕

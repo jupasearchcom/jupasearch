@@ -1,0 +1,31 @@
+{
+  "query": "\nSHOW TABLES;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 39v32gWrepXHQS1.cd7c8f8f6cb8 --database S5boJc9BZRJrUGUv3iJavX --execute \nSHOW TABLES;\n",
+  "rows": [
+    {
+      "Tables_in_S5boJc9BZRJrUGUv3iJavX": "__drizzle_migrations"
+    },
+    {
+      "Tables_in_S5boJc9BZRJrUGUv3iJavX": "courses"
+    },
+    {
+      "Tables_in_S5boJc9BZRJrUGUv3iJavX": "dse_scores"
+    },
+    {
+      "Tables_in_S5boJc9BZRJrUGUv3iJavX": "jupas_choices"
+    },
+    {
+      "Tables_in_S5boJc9BZRJrUGUv3iJavX": "saved_reports"
+    },
+    {
+      "Tables_in_S5boJc9BZRJrUGUv3iJavX": "user_favorites"
+    },
+    {
+      "Tables_in_S5boJc9BZRJrUGUv3iJavX": "users"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_S5boJc9BZRJrUGUv3iJavX\n__drizzle_migrations\ncourses\ndse_scores\njupas_choices\nsaved_reports\nuser_favorites\nusers\n",
+  "stderr": "",
+  "execution_time_ms": 1624
+}

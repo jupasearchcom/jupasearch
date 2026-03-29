@@ -6,7 +6,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import {
   ListOrdered, Search, Loader2, GripVertical,
-  Trash2, ArrowUp, ArrowDown, Save, CheckCircle2, Cloud,
+  Trash2, ArrowUp, ArrowDown, Save, CheckCircle2, Cloud, Plus, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
@@ -14,11 +14,11 @@ import { cn } from "@/lib/utils";
 import type { Course } from "../../../drizzle/schema";
 
 const LS_KEY = "jupasearch_choices";
+const LS_PENDING_KEY = "jupasearch_choices_pending";
 
 interface ChoiceItem {
   courseId: number;
   rank: number;
-  course?: Course;
 }
 
 function getLocalChoices(): ChoiceItem[] {
@@ -34,9 +34,22 @@ function saveLocalChoices(choices: ChoiceItem[]) {
   localStorage.setItem(LS_KEY, JSON.stringify(choices.map(({ courseId, rank }) => ({ courseId, rank }))));
 }
 
+function getLocalPending(): number[] {
+  try {
+    const raw = localStorage.getItem(LS_PENDING_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalPending(ids: number[]) {
+  localStorage.setItem(LS_PENDING_KEY, JSON.stringify(ids));
+}
+
 export default function Choices() {
   const { t, language } = useLanguage();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const utils = trpc.useUtils();
 
   // Server choices (when logged in)
@@ -52,42 +65,61 @@ export default function Choices() {
     },
   });
 
-  const [localChoices, setLocalChoices] = useState<ChoiceItem[]>(() => {
-    if (typeof window !== "undefined" && !isAuthenticated) return getLocalChoices();
-    return [];
-  });
-  const [courseDetails, setCourseDetails] = useState<Record<number, Course>>({});
+  // Use a single source of truth: localChoices (synced from server when authenticated)
+  const [localChoices, setLocalChoices] = useState<ChoiceItem[]>([]);
+  // Pending courses: added from search but not yet in the choices list
+  const [pendingIds, setPendingIds] = useState<number[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [initialized, setInitialized] = useState(false);
+
+  // Initialize from localStorage after auth is determined
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated && !initialized) {
+      setLocalChoices(getLocalChoices());
+      setPendingIds(getLocalPending());
+      setInitialized(true);
+    }
+  }, [authLoading, isAuthenticated, initialized]);
 
   // Sync from server when authenticated
   useEffect(() => {
     if (isAuthenticated && choicesData?.choices) {
       setLocalChoices(choicesData.choices.sort((a, b) => a.rank - b.rank));
+      setInitialized(true);
     }
   }, [isAuthenticated, choicesData]);
 
   // Persist to localStorage when not authenticated
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated && initialized) {
       saveLocalChoices(localChoices);
     }
-  }, [isAuthenticated, localChoices]);
+  }, [isAuthenticated, localChoices, initialized]);
 
-  // Fetch course details
-  const courseIds = localChoices.map((c) => c.courseId);
-  const { data: allCoursesData } = trpc.courses.list.useQuery(
-    { pageSize: 100 },
-    { enabled: courseIds.length > 0 }
+  useEffect(() => {
+    if (!isAuthenticated && initialized) {
+      saveLocalPending(pendingIds);
+    }
+  }, [isAuthenticated, pendingIds, initialized]);
+
+  // Fetch course details for all courseIds (choices + pending)
+  const allIds = Array.from(new Set([...localChoices.map((c) => c.courseId), ...pendingIds]));
+  const [courseDetails, setCourseDetails] = useState<Record<number, Course>>({});
+
+  const { data: coursesData } = trpc.courses.list.useQuery(
+    { pageSize: 500 },
+    { enabled: allIds.length > 0 }
   );
 
   useEffect(() => {
-    if (allCoursesData?.courses) {
+    if (coursesData?.courses) {
       const map: Record<number, Course> = {};
-      allCoursesData.courses.forEach((c) => { map[c.id] = c; });
+      coursesData.courses.forEach((c) => { map[c.id] = c; });
       setCourseDetails(map);
     }
-  }, [allCoursesData]);
+  }, [coursesData]);
 
   // ─── Drag & Drop ──────────────────────────────────────────────────────────
   const dragIndex = useRef<number | null>(null);
@@ -152,6 +184,23 @@ export default function Choices() {
     setIsDirty(true);
   }, []);
 
+  // ─── Pending → Choices ─────────────────────────────────────────────────────
+  const addPendingToChoices = useCallback((courseId: number) => {
+    if (localChoices.length >= 20) {
+      toast.error(t("choices.max"));
+      return;
+    }
+    const newChoices = [...localChoices, { courseId, rank: localChoices.length + 1 }];
+    setLocalChoices(newChoices);
+    setPendingIds((prev) => prev.filter((id) => id !== courseId));
+    setIsDirty(true);
+    toast.success(language === "en" ? "Added to choices list" : language === "zh-CN" ? "已添加到志愿表" : "已添加到志願表");
+  }, [localChoices, t, language]);
+
+  const removePending = useCallback((courseId: number) => {
+    setPendingIds((prev) => prev.filter((id) => id !== courseId));
+  }, []);
+
   const handleSave = () => {
     if (isAuthenticated) {
       saveChoices.mutate({ choices: localChoices });
@@ -168,7 +217,13 @@ export default function Choices() {
     return course.institution;
   };
 
-  if (isAuthenticated && choicesLoading) {
+  const getCourseName = (course: Course) => {
+    if (language === "zh-CN") return course.nameZhCn || course.nameZhTw;
+    if (language === "en") return course.nameEn || course.nameZhTw;
+    return course.nameZhTw;
+  };
+
+  if (authLoading || (isAuthenticated && choicesLoading)) {
     return (
       <div className="container py-20 flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -178,6 +233,7 @@ export default function Choices() {
 
   return (
     <div className="container py-6 max-w-3xl">
+      {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold mb-1 flex items-center gap-2"
@@ -206,7 +262,7 @@ export default function Choices() {
       </div>
 
       {/* Guest sync notice */}
-      {!isAuthenticated && localChoices.length > 0 && (
+      {!isAuthenticated && (localChoices.length > 0 || pendingIds.length > 0) && (
         <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground bg-secondary px-3 py-2 rounded-lg">
           <Cloud className="w-3.5 h-3.5 shrink-0" />
           <span>
@@ -223,7 +279,7 @@ export default function Choices() {
       )}
 
       {/* Progress bar */}
-      <div className="mb-4">
+      <div className="mb-6">
         <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
           <span>{language === "en" ? "Choices filled" : language === "zh-CN" ? "已填志愿" : "已填志願"}</span>
           <span>{localChoices.length}/20</span>
@@ -236,42 +292,35 @@ export default function Choices() {
         </div>
       </div>
 
-      {/* Drag hint */}
-      {localChoices.length > 1 && (
-        <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1.5">
-          <GripVertical className="w-3.5 h-3.5" />
-          {language === "en" ? "Drag to reorder, or use arrows" : language === "zh-CN" ? "拖拽调整顺序，或使用箭头按钮" : "拖拉調整順序，或使用箭頭按鈕"}
-        </p>
-      )}
+      {/* ─── Choices List ─── */}
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground">
+          {language === "en" ? "My Choices" : language === "zh-CN" ? "我的志愿表" : "我的志願表"}
+        </h2>
+        {localChoices.length > 1 && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <GripVertical className="w-3.5 h-3.5" />
+            {language === "en" ? "Drag to reorder" : language === "zh-CN" ? "拖拽调整顺序" : "拖拉調整順序"}
+          </p>
+        )}
+      </div>
 
       {localChoices.length === 0 ? (
-        <div className="text-center py-16 border border-dashed border-border rounded-xl">
-          <ListOrdered className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground mb-4">{t("choices.empty")}</p>
+        <div className="text-center py-12 border border-dashed border-border rounded-xl mb-6">
+          <ListOrdered className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+          <p className="text-muted-foreground text-sm mb-4">{t("choices.empty")}</p>
           <Link href="/courses">
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" size="sm" className="gap-2">
               <Search className="w-4 h-4" />
               {t("choices.empty.cta")}
             </Button>
           </Link>
-          {!isAuthenticated && (
-            <p className="text-xs text-muted-foreground mt-4">
-              {language === "en"
-                ? "No login required. Login to sync across devices."
-                : language === "zh-CN"
-                ? "无需登录，登录后可跨设备同步。"
-                : "無需登入，登入後可跨裝置同步。"}
-            </p>
-          )}
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 mb-6">
           {localChoices.map((choice, index) => {
             const course = courseDetails[choice.courseId];
-            const name = course
-              ? (language === "zh-CN" ? (course.nameZhCn || course.nameZhTw) :
-                language === "en" ? (course.nameEn || course.nameZhTw) : course.nameZhTw)
-              : `Course #${choice.courseId}`;
+            const name = course ? getCourseName(course) : `Course #${choice.courseId}`;
             const isDraggingOver = dragOverIdx === index;
 
             return (
@@ -302,7 +351,7 @@ export default function Choices() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-0.5">
+                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                     {course?.jupasCode && (
                       <span className="text-xs font-mono text-muted-foreground">{course.jupasCode}</span>
                     )}
@@ -353,7 +402,89 @@ export default function Choices() {
         </div>
       )}
 
-      {localChoices.length > 0 && localChoices.length < 20 && (
+      {/* ─── Pending Courses (Staging Area) ─── */}
+      {pendingIds.length > 0 && (
+        <div className="mt-2">
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-sm font-semibold text-foreground">
+              {language === "en" ? "Pending Courses" : language === "zh-CN" ? "待加入课程" : "待加入課程"}
+            </h2>
+            <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+              {pendingIds.length}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            {language === "en"
+              ? "Courses you added from search. Click \"Add\" to move them into your choices list."
+              : language === "zh-CN"
+              ? "从课程搜索添加的课程。点击「添加」将其移入志愿表。"
+              : "從課程搜尋加入的課程。點擊「添加」將其移入志願表。"}
+          </p>
+          <div className="space-y-2">
+            {pendingIds.map((courseId) => {
+              const course = courseDetails[courseId];
+              const name = course ? getCourseName(course) : `Course #${courseId}`;
+              const alreadyInChoices = localChoices.some((c) => c.courseId === courseId);
+
+              return (
+                <div
+                  key={courseId}
+                  className="flex items-center gap-3 bg-secondary/30 border border-dashed border-border rounded-xl p-3"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      {course?.jupasCode && (
+                        <span className="text-xs font-mono text-muted-foreground">{course.jupasCode}</span>
+                      )}
+                      {course?.degreeType && (
+                        <span className="text-xs bg-foreground/70 text-background px-1.5 py-0.5 rounded">
+                          {course.degreeType}
+                        </span>
+                      )}
+                    </div>
+                    <Link href={`/courses/${courseId}`}>
+                      <p className="text-sm font-medium hover:underline cursor-pointer truncate">{name}</p>
+                    </Link>
+                    {course && (
+                      <p className="text-xs text-muted-foreground">{getInstitutionName(course)}</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {alreadyInChoices ? (
+                      <span className="text-xs text-muted-foreground px-2 py-1 bg-secondary rounded">
+                        {language === "en" ? "In list" : language === "zh-CN" ? "已在志愿表" : "已在志願表"}
+                      </span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="gap-1.5 h-7 text-xs"
+                        onClick={() => addPendingToChoices(courseId)}
+                        disabled={localChoices.length >= 20}
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                        {language === "en" ? "Add" : language === "zh-CN" ? "添加" : "添加"}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="w-7 h-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => removePending(courseId)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Add more button */}
+      {localChoices.length > 0 && localChoices.length < 20 && pendingIds.length === 0 && (
         <div className="mt-4 text-center">
           <Link href="/courses">
             <Button variant="outline" size="sm" className="gap-2">
@@ -364,6 +495,7 @@ export default function Choices() {
         </div>
       )}
 
+      {/* Save button */}
       {isDirty && (
         <div className="mt-6 flex justify-end">
           <Button onClick={handleSave} disabled={saveChoices.isPending} className="gap-2">

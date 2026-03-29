@@ -4,7 +4,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Heart, Search, Loader2, Trash2, ExternalLink, LogIn, Cloud } from "lucide-react";
+import { Heart, Search, Loader2, Trash2, ExternalLink, Cloud, ListOrdered } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 import { cn } from "@/lib/utils";
@@ -66,6 +66,32 @@ export default function Favorites() {
 
   const isLoading = isAuthenticated ? serverLoading : localLoading;
   const favorites: Course[] = isAuthenticated ? serverFavorites : localFavorites;
+
+  const handleAddToChoices = useCallback((course: Course) => {
+    const LS_PENDING = "jupasearch_choices_pending";
+    const LS_CHOICES = "jupasearch_choices";
+    try {
+      const rawPending = localStorage.getItem(LS_PENDING);
+      const pending: number[] = rawPending ? JSON.parse(rawPending) : [];
+      const rawChoices = localStorage.getItem(LS_CHOICES);
+      const choices: { courseId: number }[] = rawChoices ? JSON.parse(rawChoices) : [];
+      if (pending.includes(course.id) || choices.find((c) => c.courseId === course.id)) {
+        toast.info(
+          language === "en" ? "Already in pending or choices" :
+          language === "zh-CN" ? "已在待加入或志愿表中" : "已在待加入或志願表中"
+        );
+        return;
+      }
+      localStorage.setItem(LS_PENDING, JSON.stringify([...pending, course.id]));
+      const courseName = language === "zh-CN" ? (course.nameZhCn || course.nameZhTw) : language === "en" ? (course.nameEn || course.nameZhTw) : course.nameZhTw;
+      toast.success(
+        language === "en" ? `Added to pending: ${courseName}` :
+        language === "zh-CN" ? `已加入待加入区：${courseName}` :
+        `已加入待加入區：${courseName}`,
+        { description: language === "en" ? "Go to Choices page to add to your list" : language === "zh-CN" ? "前往志愿页面将其加入志愿表" : "前往志願頁面將其加入志願表" }
+      );
+    } catch { /* ignore */ }
+  }, [language]);
 
   const getInstitutionName = (course: Course) => {
     if (language === "zh-CN") return course.institutionZhCn || course.institution;
@@ -176,6 +202,15 @@ export default function Favorites() {
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-8 h-8 text-muted-foreground hover:text-foreground"
+                    title={language === "en" ? "Add to Choices" : language === "zh-CN" ? "添加到志愿" : "加入志願"}
+                    onClick={() => handleAddToChoices(course)}
+                  >
+                    <ListOrdered className="w-3.5 h-3.5" />
+                  </Button>
                   <Link href={`/courses/${course.id}`}>
                     <Button variant="ghost" size="icon" className="w-8 h-8 text-muted-foreground">
                       <ExternalLink className="w-3.5 h-3.5" />
