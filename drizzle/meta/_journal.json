@@ -15,6 +15,27 @@
       "when": 1774738807644,
       "tag": "0001_bright_maelstrom",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1774818506046,
+      "tag": "0002_puzzling_katie_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1774820176834,
+      "tag": "0003_heavy_timeslip",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1774820659060,
+      "tag": "0004_curved_aqueduct",
+      "breakpoints": true
     }
   ]
 }

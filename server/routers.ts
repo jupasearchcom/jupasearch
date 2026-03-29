@@ -4,7 +4,6 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { invokeLLM } from "./_core/llm";
 import {
   addFavorite,
   bulkInsertCourses,
@@ -21,6 +20,8 @@ import {
   saveJupasChoices,
   saveReport,
   updateCourse,
+  saveDseScores,
+  getDseScores,
 } from "./db";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
@@ -68,6 +69,18 @@ const courseInputSchema = z.object({
   careerProspectsZhCn: z.string().optional(),
   careerProspectsEn: z.string().optional(),
   websiteUrl: z.string().url().optional().or(z.literal("")),
+  jupasUrl: z.string().url().optional().or(z.literal("")),
+  flexibleAdmission: z.boolean().optional(),
+  acceptMultipleSittings: z.enum(["yes_no_penalty", "yes_with_penalty", "no"]).optional(),
+  acceptAppliedLearning: z.boolean().optional(),
+  acceptOtherLanguage: z.boolean().optional(),
+  scoreFormula: z.object({
+    method: z.string(),
+    required: z.array(z.string()),
+    excluded: z.array(z.string()),
+    weighted: z.array(z.object({ subject: z.string(), multiplier: z.number() })),
+    coreSubjects: z.array(z.string()),
+  }).optional(),
 });
 
 // ─── Filters schema ───────────────────────────────────────────────────────────
@@ -81,15 +94,41 @@ const filtersSchema = z.object({
   interviewArrangements: z.array(z.string()).optional(),
   scoreGaps: z.array(z.string()).optional(),
   fundingTypes: z.array(z.string()).optional(),
-  minRequirements: z.array(z.string()).optional(),
   groupAOnly: z.boolean().optional(),
   tuitionMin: z.number().optional(),
   tuitionMax: z.number().optional(),
   moduleType: z.string().optional(),
+  flexibleAdmission: z.boolean().optional(),
+  acceptMultipleSittings: z.array(z.string()).optional(),
+  acceptAppliedLearning: z.boolean().optional(),
+  acceptOtherLanguage: z.boolean().optional(),
+  meetsMinRequirement: z.boolean().optional(), // filter by user's DSE score
   sortBy: z.string().optional(),
   sortDir: z.enum(["asc", "desc"]).optional(),
   page: z.number().int().min(1).optional(),
   pageSize: z.number().int().min(1).max(100).optional(),
+});
+
+// ─── DSE Score schema ─────────────────────────────────────────────────────────
+const dseScoreSchema = z.object({
+  chinese: z.number().min(1).max(5).optional(),
+  english: z.number().min(1).max(5).optional(),
+  math: z.number().min(1).max(5).optional(),
+  cs: z.string().optional(), // 公民與社會發展科: "attained" (always)
+  m1: z.number().min(1).max(5).optional(),
+  m2: z.number().min(1).max(5).optional(),
+  electives: z.array(z.object({
+    subject: z.string(),
+    score: z.number().min(1).max(5),
+  })).optional(),
+  appliedLearning: z.object({
+    subject: z.string(),
+    grade: z.enum(["distinction_ii", "distinction_i", "attained", "not_attained"]),
+  }).optional(),
+  otherLanguage: z.object({
+    language: z.string(),
+    grade: z.string(),
+  }).optional(),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────
@@ -121,6 +160,105 @@ export const appRouter = router({
       return getDistinctValues();
     }),
 
+    // Compute "My Score" for a list of courses given DSE scores
+    computeMyScores: publicProcedure
+      .input(z.object({
+        courseIds: z.array(z.number()),
+        dseScores: dseScoreSchema,
+      }))
+      .mutation(async ({ input }) => {
+        const { courseIds, dseScores } = input;
+        const results: Record<number, number | null> = {};
+
+        for (const id of courseIds) {
+          const course = await getCourseById(id);
+          if (!course) { results[id] = null; continue; }
+
+          const formula = course.scoreFormula as any;
+          if (!formula) { results[id] = null; continue; }
+
+          // Build subject score map
+          const scoreMap: Record<string, number> = {};
+          if (dseScores.chinese) scoreMap["chinese"] = dseScores.chinese;
+          if (dseScores.english) scoreMap["english"] = dseScores.english;
+          if (dseScores.math) scoreMap["math"] = dseScores.math;
+          if (dseScores.m1) scoreMap["m1"] = dseScores.m1;
+          if (dseScores.m2) scoreMap["m2"] = dseScores.m2;
+          for (const e of (dseScores.electives ?? [])) {
+            scoreMap[e.subject] = e.score;
+          }
+          // Applied learning grade to score
+          if (dseScores.appliedLearning) {
+            const alGrades: Record<string, number> = {
+              distinction_ii: 4, distinction_i: 3, attained: 2, not_attained: 0,
+            };
+            scoreMap[dseScores.appliedLearning.subject] = alGrades[dseScores.appliedLearning.grade] ?? 0;
+          }
+          // Other language grade to score (simplified)
+          if (dseScores.otherLanguage) {
+            const olGrades: Record<string, number> = {
+              C2: 5, C1: 4, B2: 3, B1: 2, A2: 1,
+              N1: 5, N2: 4, N3: 3,
+              "第6級": 5, "第5級": 4, "第4級": 3, "第3級": 2,
+              "A++": 5, "A+": 5, "A": 4, "B++": 4, "B+": 3, "B": 3, "C": 2, "D": 1, "E": 1,
+            };
+            scoreMap[dseScores.otherLanguage.language] = olGrades[dseScores.otherLanguage.grade] ?? 0;
+          }
+
+          // Apply weightings
+          const weightedMap: Record<string, number> = { ...scoreMap };
+          for (const w of (formula.weighted ?? [])) {
+            if (weightedMap[w.subject] !== undefined) {
+              weightedMap[w.subject] = weightedMap[w.subject] * w.multiplier;
+            }
+          }
+
+          // Filter out excluded subjects
+          const excluded = new Set(formula.excluded ?? []);
+          const available = Object.entries(weightedMap)
+            .filter(([k]) => !excluded.has(k))
+            .map(([k, v]) => ({ subject: k, score: v }));
+
+          // Required subjects must be included
+          const required = new Set(formula.required ?? []);
+          const requiredEntries = available.filter(e => required.has(e.subject));
+          const optionalEntries = available.filter(e => !required.has(e.subject));
+
+          // Sort optional by score desc
+          optionalEntries.sort((a, b) => b.score - a.score);
+
+          let total = 0;
+          const method = formula.method ?? "best5";
+
+          if (method === "best5") {
+            const pool = [...requiredEntries, ...optionalEntries];
+            pool.sort((a, b) => b.score - a.score);
+            total = pool.slice(0, 5).reduce((s, e) => s + e.score, 0);
+          } else if (method === "best4") {
+            const pool = [...requiredEntries, ...optionalEntries];
+            pool.sort((a, b) => b.score - a.score);
+            total = pool.slice(0, 4).reduce((s, e) => s + e.score, 0);
+          } else if (method === "best6") {
+            const pool = [...requiredEntries, ...optionalEntries];
+            pool.sort((a, b) => b.score - a.score);
+            total = pool.slice(0, 6).reduce((s, e) => s + e.score, 0);
+          } else if (method === "2c3x") {
+            // 2 core + 3 elective
+            const coreSubjects = new Set(formula.coreSubjects ?? ["chinese", "english", "math"]);
+            const coreEntries = available.filter(e => coreSubjects.has(e.subject));
+            const electiveEntries = available.filter(e => !coreSubjects.has(e.subject));
+            electiveEntries.sort((a, b) => b.score - a.score);
+            const topCore = coreEntries.sort((a, b) => b.score - a.score).slice(0, 2);
+            const topElective = electiveEntries.slice(0, 3);
+            total = [...topCore, ...topElective].reduce((s, e) => s + e.score, 0);
+          }
+
+          results[id] = Math.round(total * 100) / 100;
+        }
+
+        return results;
+      }),
+
     // Admin CRUD
     create: adminProcedure.input(courseInputSchema).mutation(async ({ input }) => {
       await createCourse(input as any);
@@ -147,26 +285,29 @@ export const appRouter = router({
       }),
   }),
 
-  // ─── Favorites ─────────────────────────────────────────────────────────────
+  // ─── Favorites (no login required - use publicProcedure with optional auth) ─
   favorites: router({
     list: protectedProcedure.query(async ({ ctx }) => {
       return getUserFavorites(ctx.user.id);
     }),
 
-    ids: protectedProcedure.query(async ({ ctx }) => {
+    ids: publicProcedure.query(async ({ ctx }) => {
+      if (!ctx.user) return [];
       return getFavoriteIds(ctx.user.id);
     }),
 
-    add: protectedProcedure
+    add: publicProcedure
       .input(z.object({ courseId: z.number() }))
       .mutation(async ({ ctx, input }) => {
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
         await addFavorite(ctx.user.id, input.courseId);
         return { success: true };
       }),
 
-    remove: protectedProcedure
+    remove: publicProcedure
       .input(z.object({ courseId: z.number() }))
       .mutation(async ({ ctx, input }) => {
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
         await removeFavorite(ctx.user.id, input.courseId);
         return { success: true };
       }),
@@ -174,20 +315,52 @@ export const appRouter = router({
 
   // ─── JUPAS Choices ─────────────────────────────────────────────────────────
   choices: router({
-    get: protectedProcedure.query(async ({ ctx }) => {
+    get: publicProcedure.query(async ({ ctx }) => {
+      if (!ctx.user) return { choices: [] };
       return getJupasChoices(ctx.user.id);
     }),
 
-    save: protectedProcedure
+    save: publicProcedure
       .input(
         z.object({
           choices: z.array(z.object({ courseId: z.number(), rank: z.number() })).max(20),
         })
       )
       .mutation(async ({ ctx, input }) => {
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
         await saveJupasChoices(ctx.user.id, input.choices);
         return { success: true };
       }),
+  }),
+
+  // ─── DSE Scores ────────────────────────────────────────────────────────────
+  dse: router({
+    saveScores: protectedProcedure
+      .input(z.object({
+        chinese: z.string().optional(),
+        english: z.string().optional(),
+        math: z.string().optional(),
+        mathExtended: z.string().optional(),
+        civics: z.string().optional(),
+        elective1Subject: z.string().optional(),
+        elective1Grade: z.string().optional(),
+        elective2Subject: z.string().optional(),
+        elective2Grade: z.string().optional(),
+        elective3Subject: z.string().optional(),
+        elective3Grade: z.string().optional(),
+        appliedLearningSubject: z.string().optional(),
+        appliedLearningGrade: z.string().optional(),
+        otherLanguage: z.string().optional(),
+        otherLanguageGrade: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await saveDseScores(ctx.user.id, input);
+        return { success: true };
+      }),
+
+    getScores: protectedProcedure.query(async ({ ctx }) => {
+      return getDseScores(ctx.user.id);
+    }),
   }),
 
   // ─── Reports ───────────────────────────────────────────────────────────────
@@ -210,115 +383,6 @@ export const appRouter = router({
         const { url } = await storagePut(key, buffer, "application/pdf");
         await saveReport(ctx.user.id, input.title, input.courseIds, url);
         return { success: true, url };
-      }),
-  }),
-
-  // ─── AI Recommendation ─────────────────────────────────────────────────────
-  ai: router({
-    recommend: protectedProcedure
-      .input(
-        z.object({
-          dseScores: z.object({
-            chinese: z.number().min(1).max(5),
-            english: z.number().min(1).max(5),
-            math: z.number().min(1).max(5),
-            ls: z.number().min(1).max(5),
-            elective1: z.number().min(1).max(5).optional(),
-            elective2: z.number().min(1).max(5).optional(),
-            elective3: z.number().min(1).max(5).optional(),
-            elective1Name: z.string().optional(),
-            elective2Name: z.string().optional(),
-            elective3Name: z.string().optional(),
-          }),
-          interests: z.array(z.string()),
-          targetInstitutions: z.array(z.string()),
-          language: z.enum(["zh-TW", "zh-CN", "en"]).default("zh-TW"),
-        })
-      )
-      .mutation(async ({ input }) => {
-        const { dseScores, interests, targetInstitutions, language } = input;
-
-        const scoreStr = `中文: ${dseScores.chinese}, 英文: ${dseScores.english}, 數學: ${dseScores.math}, 通識: ${dseScores.ls}` +
-          (dseScores.elective1Name ? `, ${dseScores.elective1Name}: ${dseScores.elective1}` : "") +
-          (dseScores.elective2Name ? `, ${dseScores.elective2Name}: ${dseScores.elective2}` : "") +
-          (dseScores.elective3Name ? `, ${dseScores.elective3Name}: ${dseScores.elective3}` : "");
-
-        const langInstruction = language === "zh-TW" ? "請用繁體中文回答" :
-          language === "zh-CN" ? "请用简体中文回答" : "Please answer in English";
-
-        const prompt = `${langInstruction}。
-
-你是一位香港升學顧問，專門幫助學生選擇 JUPAS 課程。
-
-學生 DSE 成績：${scoreStr}
-興趣領域：${interests.join(", ")}
-目標院校：${targetInstitutions.length > 0 ? targetInstitutions.join(", ") : "不限"}
-
-請根據以上資料：
-1. 分析學生的優勢科目和成績水平
-2. 推薦 5-8 個最適合的 JUPAS 課程（包括課程名稱、院校、原因）
-3. 分成「穩入」（成績明顯高於要求）、「目標」（成績接近要求）、「衝刺」（成績略低於要求）三類
-4. 提供選科策略建議
-5. 提醒需要注意的事項
-
-請以結構化方式呈現，清晰易讀。`;
-
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: "你是一位專業的香港升學顧問，熟悉 JUPAS 制度和各大學課程要求。" },
-            { role: "user", content: prompt },
-          ],
-        });
-
-        const content = response.choices[0]?.message?.content ?? "";
-        return { recommendation: content };
-      }),
-
-    compareAnalysis: protectedProcedure
-      .input(
-        z.object({
-          courseIds: z.array(z.number()).min(2).max(6),
-          language: z.enum(["zh-TW", "zh-CN", "en"]).default("zh-TW"),
-        })
-      )
-      .mutation(async ({ input }) => {
-        const { courseIds, language } = input;
-
-        // Fetch course details
-        const courseDetails = await Promise.all(courseIds.map((id) => getCourseById(id)));
-        const validCourses = courseDetails.filter(Boolean);
-
-        const langInstruction = language === "zh-TW" ? "請用繁體中文回答" :
-          language === "zh-CN" ? "请用简体中文回答" : "Please answer in English";
-
-        const courseSummaries = validCourses.map((c) =>
-          `- ${c!.nameZhTw} (${c!.institution}): 學費 ${c!.tuitionFee ?? "未知"} 元/年, 收生 ${c!.quota ?? "未知"} 人, 去年中位數 ${c!.lastYearMedian ?? "未知"}`
-        ).join("\n");
-
-        const prompt = `${langInstruction}。
-
-請比較以下 JUPAS 課程，提供深入分析：
-
-${courseSummaries}
-
-請分析：
-1. 各課程的入學競爭程度
-2. 學費比較
-3. 就業前景分析
-4. 課程特色比較
-5. 選擇建議
-
-請以結構化方式呈現。`;
-
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: "你是一位專業的香港升學顧問。" },
-            { role: "user", content: prompt },
-          ],
-        });
-
-        const content = response.choices[0]?.message?.content ?? "";
-        return { analysis: content };
       }),
   }),
 });

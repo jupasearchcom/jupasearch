@@ -1,17 +1,8 @@
-import { useState } from "react";
 import { useCompare } from "@/contexts/CompareContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import {
-  BarChart2, Search, Loader2, Sparkles, Download,
-  CheckCircle2, XCircle, Minus, Save,
-} from "lucide-react";
-import { toast } from "sonner";
-import { Streamdown } from "streamdown";
-import { getLoginUrl } from "@/const";
+import { BarChart2, Search, CheckCircle2, XCircle, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Course } from "../../../drizzle/schema";
 
@@ -29,80 +20,7 @@ function BoolCell({ value }: { value: boolean | null | undefined }) {
 
 export default function Compare() {
   const { t, language } = useLanguage();
-  const { isAuthenticated } = useAuth();
   const { compareList, clearCompare } = useCompare();
-  const [aiAnalysis, setAiAnalysis] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const aiCompare = trpc.ai.compareAnalysis.useMutation({
-    onSuccess: (data: { analysis: string | any[] }) => {
-      const content = typeof data.analysis === 'string' ? data.analysis : JSON.stringify(data.analysis);
-      setAiAnalysis(content);
-      setIsAnalyzing(false);
-    },
-    onError: (e: { message: string }) => {
-      toast.error(e.message);
-      setIsAnalyzing(false);
-    },
-  });
-
-  const saveReport = trpc.reports.save.useMutation({
-    onSuccess: () => {
-      toast.success(language === "en" ? "Report saved!" : "報告已儲存");
-      setIsSaving(false);
-    },
-    onError: (e: { message: string }) => {
-      toast.error(e.message);
-      setIsSaving(false);
-    },
-  });
-
-  const handleAnalyze = () => {
-    if (compareList.length < 2) {
-      toast.error(language === "en" ? "Add at least 2 courses to compare" : "請至少選擇 2 個課程進行比較");
-      return;
-    }
-    setIsAnalyzing(true);
-    setAiAnalysis("");
-    aiCompare.mutate({
-      courseIds: compareList.map((c) => c.id),
-      language: language as "zh-TW" | "zh-CN" | "en",
-    });
-  };
-
-  const handleSaveReport = () => {
-    if (!isAuthenticated) {
-      toast.error(t("common.loginRequired"), {
-        action: { label: t("nav.login"), onClick: () => window.location.href = getLoginUrl() },
-      });
-      return;
-    }
-    if (!aiAnalysis) {
-      toast.error(language === "en" ? "Generate analysis first" : "請先生成分析報告");
-      return;
-    }
-    setIsSaving(true);
-    const title = `${compareList.map((c) => c.nameZhTw).join(" vs ")} 比較報告`;
-    // Save text report as base64
-    const reportData = btoa(unescape(encodeURIComponent(aiAnalysis)));
-    saveReport.mutate({
-      title,
-      courseIds: compareList.map((c) => c.id),
-      reportData,
-    });
-  };
-
-  const handleDownload = () => {
-    if (!aiAnalysis) return;
-    const blob = new Blob([aiAnalysis], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `jupasearch-compare-${Date.now()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   if (compareList.length === 0) {
     return (
@@ -154,10 +72,6 @@ export default function Compare() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={clearCompare}>{t("common.reset")}</Button>
-          <Button size="sm" className="gap-2" onClick={handleAnalyze} disabled={isAnalyzing}>
-            {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {t("compare.analyze")}
-          </Button>
         </div>
       </div>
 
@@ -204,51 +118,7 @@ export default function Compare() {
         </div>
       </div>
 
-      {/* AI Analysis */}
-      <div className="border border-border rounded-xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold flex items-center gap-2">
-            <Sparkles className="w-4 h-4" />
-            {t("compare.aiAnalysis")}
-          </h2>
-          {aiAnalysis && (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="gap-2" onClick={handleDownload}>
-                <Download className="w-4 h-4" />
-                {language === "en" ? "Download" : "下載"}
-              </Button>
-              <Button variant="outline" size="sm" className="gap-2" onClick={handleSaveReport} disabled={isSaving}>
-                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                {language === "en" ? "Save Report" : "儲存報告"}
-              </Button>
-            </div>
-          )}
-        </div>
 
-        {!aiAnalysis && !isAnalyzing && (
-          <div className="text-center py-10">
-            <Sparkles className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground mb-4">{t("compare.aiAnalysis.empty")}</p>
-            <Button size="sm" className="gap-2" onClick={handleAnalyze}>
-              <Sparkles className="w-4 h-4" />
-              {t("compare.analyze")}
-            </Button>
-          </div>
-        )}
-
-        {isAnalyzing && (
-          <div className="text-center py-10">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">{t("ai.analyzing")}</p>
-          </div>
-        )}
-
-        {aiAnalysis && (
-          <div className="prose prose-sm max-w-none dark:prose-invert">
-            <Streamdown>{aiAnalysis}</Streamdown>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

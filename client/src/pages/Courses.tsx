@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCompare } from "@/contexts/CompareContext";
@@ -7,7 +7,6 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -34,36 +33,71 @@ import {
   Search,
   SlidersHorizontal,
   Heart,
-  HeartOff,
   BarChart2,
   Plus,
-  ListOrdered,
   ChevronLeft,
   ChevronRight,
   X,
-  Info,
   Loader2,
-  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Course } from "../../../drizzle/schema";
 import { getLoginUrl } from "@/const";
+import { getLocalFavoriteIds, setLocalFavoriteIds } from "./Favorites";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const INSTITUTIONS = [
-  "香港城市大學", "香港浸會大學", "嶺南大學", "香港中文大學",
-  "香港教育大學", "香港理工大學", "香港科技大學", "香港大學",
-  "香港都會大學", "港珠海學院", "香港樹仁大學", "聖方濟各大學",
-  "香港高等教育科技學院", "香港恒生大學", "東華學院", "香港伍倫貢學院",
-];
+// Institution key → { zhTw, zhCn, en }
+const INSTITUTION_MAP: Record<string, { zhTw: string; zhCn: string; en: string }> = {
+  "香港城市大學":     { zhTw: "香港城市大學",     zhCn: "香港城市大学",     en: "City University of Hong Kong" },
+  "香港浸會大學":     { zhTw: "香港浸會大學",     zhCn: "香港浸会大学",     en: "Hong Kong Baptist University" },
+  "嶺南大學":         { zhTw: "嶺南大學",         zhCn: "岭南大学",         en: "Lingnan University" },
+  "香港中文大學":     { zhTw: "香港中文大學",     zhCn: "香港中文大学",     en: "The Chinese University of Hong Kong" },
+  "香港教育大學":     { zhTw: "香港教育大學",     zhCn: "香港教育大学",     en: "The Education University of Hong Kong" },
+  "香港理工大學":     { zhTw: "香港理工大學",     zhCn: "香港理工大学",     en: "The Hong Kong Polytechnic University" },
+  "香港科技大學":     { zhTw: "香港科技大學",     zhCn: "香港科技大学",     en: "The Hong Kong University of Science and Technology" },
+  "香港大學":         { zhTw: "香港大學",         zhCn: "香港大学",         en: "The University of Hong Kong" },
+  "香港都會大學":     { zhTw: "香港都會大學",     zhCn: "香港都会大学",     en: "Hong Kong Metropolitan University" },
+  "港珠海學院":       { zhTw: "港珠海學院",       zhCn: "港珠海学院",       en: "Hang Seng University of Hong Kong" },
+  "香港樹仁大學":     { zhTw: "香港樹仁大學",     zhCn: "香港树仁大学",     en: "Shue Yan University" },
+  "聖方濟各大學":     { zhTw: "聖方濟各大學",     zhCn: "圣方济各大学",     en: "Saint Francis University" },
+  "香港高等教育科技學院": { zhTw: "香港高等教育科技學院", zhCn: "香港高等教育科技学院", en: "THEi" },
+  "香港恒生大學":     { zhTw: "香港恒生大學",     zhCn: "香港恒生大学",     en: "Hang Seng University of Hong Kong" },
+  "東華學院":         { zhTw: "東華學院",         zhCn: "东华学院",         en: "Tung Wah College" },
+  "香港伍倫貢學院":   { zhTw: "香港伍倫貢學院",   zhCn: "香港伍伦贡学院",   en: "UOWCHK" },
+};
 
-const DEGREE_TYPES = ["BA", "BSc", "BEng", "BEd", "BLaw", "BBA", "BNurs", "BPharm", "BArch", "BSW", "BSSc", "BFA", "BMus", "LLB"];
+const INSTITUTIONS = Object.keys(INSTITUTION_MAP);
+
+// Degree types with full names
+const DEGREE_TYPES_MAP: Record<string, { zhTw: string; zhCn: string; en: string }> = {
+  "BA":     { zhTw: "BA 文學士",      zhCn: "BA 文学士",      en: "BA Bachelor of Arts" },
+  "BSc":    { zhTw: "BSc 理學士",     zhCn: "BSc 理学士",     en: "BSc Bachelor of Science" },
+  "BEng":   { zhTw: "BEng 工程學士", zhCn: "BEng 工程学士", en: "BEng Bachelor of Engineering" },
+  "BEd":    { zhTw: "BEd 教育學士",  zhCn: "BEd 教育学士",  en: "BEd Bachelor of Education" },
+  "LLB":    { zhTw: "LLB 法學士",    zhCn: "LLB 法学士",    en: "LLB Bachelor of Laws" },
+  "BBA":    { zhTw: "BBA 工商管理學士", zhCn: "BBA 工商管理学士", en: "BBA Bachelor of Business Administration" },
+  "BNurs":  { zhTw: "BNurs 護理學士", zhCn: "BNurs 护理学士", en: "BNurs Bachelor of Nursing" },
+  "BPharm": { zhTw: "BPharm 藥學士", zhCn: "BPharm 药学士", en: "BPharm Bachelor of Pharmacy" },
+  "BArch":  { zhTw: "BArch 建築學士", zhCn: "BArch 建筑学士", en: "BArch Bachelor of Architecture" },
+  "BSW":    { zhTw: "BSW 社工學士",  zhCn: "BSW 社工学士",  en: "BSW Bachelor of Social Work" },
+  "BSSc":   { zhTw: "BSSc 社科學士", zhCn: "BSSc 社科学士", en: "BSSc Bachelor of Social Science" },
+  "BFA":    { zhTw: "BFA 美術學士",  zhCn: "BFA 美术学士",  en: "BFA Bachelor of Fine Arts" },
+  "BMus":   { zhTw: "BMus 音樂學士", zhCn: "BMus 音乐学士", en: "BMus Bachelor of Music" },
+};
+const DEGREE_TYPES = Object.keys(DEGREE_TYPES_MAP);
+
 const SCORING_METHODS = ["best5", "best6", "best4", "2c3x"];
 const SCORE_GAPS = ["above_median", "above_q1", "below_q1", "between_median_q1"];
 const FUNDING_TYPES = ["ugc", "nmtss", "sssdp", "self_financed"];
-const INTERVIEW_OPTIONS = ["required", "not_required", "by_invitation", "portfolio"];
-const MIN_REQUIREMENTS = ["33322", "33222", "22222", "332A33", "332A22", "332A23"];
+// Updated interview options per user request #29
+const INTERVIEW_OPTIONS = [
+  "all_applicants",
+  "selective_basis",
+  "may_require",
+  "special_cases",
+  "no_interview",
+];
 const DURATIONS = [2, 4, 5, 6];
 const QUALIFICATIONS = ["bachelor", "higher_diploma", "associate_degree"];
 const SORT_OPTIONS = [
@@ -88,13 +122,11 @@ function CourseCard({
   isFavorite,
   onToggleFavorite,
   onAddToChoices,
-  isAuthenticated,
 }: {
   course: Course;
   isFavorite: boolean;
   onToggleFavorite: (course: Course) => void;
   onAddToChoices: (course: Course) => void;
-  isAuthenticated: boolean;
 }) {
   const { t, language } = useLanguage();
   const { addToCompare, removeFromCompare, isInCompare } = useCompare();
@@ -103,8 +135,16 @@ function CourseCard({
   const name = language === "zh-CN" ? (course.nameZhCn || course.nameZhTw) :
     language === "en" ? (course.nameEn || course.nameZhTw) : course.nameZhTw;
 
+  const institutionName = (() => {
+    const key = course.institution;
+    const map = INSTITUTION_MAP[key];
+    if (!map) return key;
+    if (language === "zh-CN") return course.institutionZhCn || map.zhCn;
+    if (language === "en") return course.institutionEn || map.en;
+    return key;
+  })();
+
   const fundingLabel = course.fundingType ? t(`funding.${course.fundingType}`) : null;
-  const qualLabel = course.qualification ? t(`qual.${course.qualification}`) : null;
 
   return (
     <div className="group relative bg-card border border-border rounded-xl p-4 hover:border-foreground/20 hover:shadow-md transition-all duration-200">
@@ -136,10 +176,10 @@ function CourseCard({
           {name}
         </h3>
       </Link>
-      <p className="text-xs text-muted-foreground mb-3">{course.institution}</p>
+      <p className="text-xs text-muted-foreground mb-3">{institutionName}</p>
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-3 gap-2 mb-3">
+      {/* Stats grid — more data */}
+      <div className="grid grid-cols-3 gap-2 mb-2">
         <StatCell label={t("courses.col.quota")} value={course.quota?.toString() ?? "—"} />
         <StatCell label={t("courses.col.median")} value={formatScore(course.lastYearMedian)} />
         <StatCell label={t("courses.col.q1")} value={formatScore(course.lastYearQ1)} />
@@ -147,8 +187,16 @@ function CourseCard({
         <StatCell label={t("courses.col.tuition")} value={formatTuition(course.tuitionFee)} />
         <StatCell
           label={t("courses.col.admitted")}
-          value={course.lastYearAdmitted ? `${course.lastYearAdmitted}${course.lastYearGroupAAdmitted ? ` (${course.lastYearGroupAAdmitted}A)` : ""}` : "—"}
+          value={course.lastYearAdmitted
+            ? `${course.lastYearAdmitted}${course.lastYearGroupAAdmitted ? ` (${course.lastYearGroupAAdmitted}A)` : ""}`
+            : "—"}
         />
+      </div>
+      {/* Second row of stats */}
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <StatCell label={t("courses.col.totalApplicants")} value={course.lastYearTotalApplicants?.toString() ?? "—"} />
+        <StatCell label={t("courses.col.groupAApplicants")} value={course.lastYearGroupAApplicants?.toString() ?? "—"} />
+        <StatCell label={t("courses.col.duration")} value={course.duration ? `${course.duration}${language === "en" ? "yr" : "年"}` : "—"} />
       </div>
 
       {/* Actions */}
@@ -240,12 +288,12 @@ function CheckboxGroup({
       {options.map((opt) => (
         <div key={opt} className="flex items-center gap-2">
           <Checkbox
-            id={opt}
+            id={`chk-${opt}`}
             checked={selected.includes(opt)}
             onCheckedChange={() => toggle(opt)}
             className="w-3.5 h-3.5"
           />
-          <Label htmlFor={opt} className="text-xs cursor-pointer leading-none">
+          <Label htmlFor={`chk-${opt}`} className="text-xs cursor-pointer leading-none">
             {labelFn ? labelFn(opt) : opt}
           </Label>
         </div>
@@ -271,9 +319,9 @@ export default function Courses() {
   const [scoreGaps, setScoreGaps] = useState<string[]>([]);
   const [fundingTypes, setFundingTypes] = useState<string[]>([]);
   const [interviewArrangements, setInterviewArrangements] = useState<string[]>([]);
-  const [minRequirements, setMinRequirements] = useState<string[]>([]);
   const [groupAOnly, setGroupAOnly] = useState<boolean | undefined>(undefined);
-  const [tuitionRange, setTuitionRange] = useState<[number, number]>([0, 100000]);
+  const [tuitionMin, setTuitionMin] = useState<string>("");
+  const [tuitionMax, setTuitionMax] = useState<string>("");
   const [sortBy, setSortBy] = useState("id");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 24;
@@ -287,6 +335,9 @@ export default function Courses() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  const parsedTuitionMin = tuitionMin ? parseInt(tuitionMin.replace(/\D/g, "")) : undefined;
+  const parsedTuitionMax = tuitionMax ? parseInt(tuitionMax.replace(/\D/g, "")) : undefined;
+
   const queryInput = useMemo(() => ({
     search: debouncedSearch || undefined,
     degreeTypes: degreeTypes.length ? degreeTypes : undefined,
@@ -297,95 +348,126 @@ export default function Courses() {
     scoreGaps: scoreGaps.length ? scoreGaps : undefined,
     fundingTypes: fundingTypes.length ? fundingTypes : undefined,
     interviewArrangements: interviewArrangements.length ? interviewArrangements : undefined,
-    minRequirements: minRequirements.length ? minRequirements : undefined,
     groupAOnly,
-    tuitionMin: tuitionRange[0] > 0 ? tuitionRange[0] : undefined,
-    tuitionMax: tuitionRange[1] < 100000 ? tuitionRange[1] : undefined,
-    moduleType: "jupas",
+    tuitionMin: parsedTuitionMin,
+    tuitionMax: parsedTuitionMax,
+    moduleType: "jupas" as const,
     sortBy,
     page,
     pageSize: PAGE_SIZE,
-  }), [debouncedSearch, degreeTypes, institutions, durations, qualifications, scoringMethods, scoreGaps, fundingTypes, interviewArrangements, minRequirements, groupAOnly, tuitionRange, sortBy, page]);
+  }), [debouncedSearch, degreeTypes, institutions, durations, qualifications, scoringMethods, scoreGaps, fundingTypes, interviewArrangements, groupAOnly, parsedTuitionMin, parsedTuitionMax, sortBy, page]);
 
   const { data, isLoading } = trpc.courses.list.useQuery(queryInput);
   const courses = data?.courses ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  // Favorites
-  const { data: favoriteIds = [] } = trpc.favorites.ids.useQuery(undefined, { enabled: isAuthenticated });
+  // Favorites — server or local
+  const { data: serverFavoriteIds = [] } = trpc.favorites.ids.useQuery(undefined, { enabled: isAuthenticated });
+  const [localFavIds, setLocalFavIds] = useState<number[]>(() => getLocalFavoriteIds());
+  const favoriteIds = isAuthenticated ? serverFavoriteIds : localFavIds;
+
   const utils = trpc.useUtils();
   const addFav = trpc.favorites.add.useMutation({ onSuccess: () => utils.favorites.ids.invalidate() });
   const removeFav = trpc.favorites.remove.useMutation({ onSuccess: () => utils.favorites.ids.invalidate() });
 
-  // JUPAS Choices
+  // Choices — server or local
   const { data: choicesData } = trpc.choices.get.useQuery(undefined, { enabled: isAuthenticated });
   const saveChoices = trpc.choices.save.useMutation({ onSuccess: () => utils.choices.get.invalidate() });
 
   const handleToggleFavorite = useCallback((course: Course) => {
-    if (!isAuthenticated) {
-      toast.error(t("common.loginRequired"), {
-        action: { label: t("nav.login"), onClick: () => window.location.href = getLoginUrl() },
-      });
-      return;
-    }
-    if (favoriteIds.includes(course.id)) {
-      removeFav.mutate({ courseId: course.id });
-      toast.success(t("courses.removeFromFavorites"));
+    if (isAuthenticated) {
+      if (favoriteIds.includes(course.id)) {
+        removeFav.mutate({ courseId: course.id });
+        toast.success(t("courses.removeFromFavorites"));
+      } else {
+        addFav.mutate({ courseId: course.id });
+        toast.success(t("courses.addToFavorites"));
+      }
     } else {
-      addFav.mutate({ courseId: course.id });
-      toast.success(t("courses.addToFavorites"));
+      const current = getLocalFavoriteIds();
+      let updated: number[];
+      if (current.includes(course.id)) {
+        updated = current.filter((id) => id !== course.id);
+        toast.success(t("courses.removeFromFavorites"));
+      } else {
+        updated = [...current, course.id];
+        toast.success(t("courses.addToFavorites"));
+      }
+      setLocalFavoriteIds(updated);
+      setLocalFavIds(updated);
     }
   }, [isAuthenticated, favoriteIds, addFav, removeFav, t]);
 
   const handleAddToChoices = useCallback((course: Course) => {
-    if (!isAuthenticated) {
-      toast.error(t("common.loginRequired"), {
-        action: { label: t("nav.login"), onClick: () => window.location.href = getLoginUrl() },
-      });
-      return;
+    if (isAuthenticated) {
+      const currentChoices = choicesData?.choices ?? [];
+      if (currentChoices.length >= 20) { toast.error(t("choices.max")); return; }
+      if (currentChoices.find((c) => c.courseId === course.id)) {
+        toast.info(language === "en" ? "Already in your choices" : "已在志願列表中");
+        return;
+      }
+      const newChoices = [...currentChoices, { courseId: course.id, rank: currentChoices.length + 1 }];
+      saveChoices.mutate({ choices: newChoices });
+    } else {
+      const LS_KEY = "jupasearch_choices";
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        const current: { courseId: number; rank: number }[] = raw ? JSON.parse(raw) : [];
+        if (current.length >= 20) { toast.error(t("choices.max")); return; }
+        if (current.find((c) => c.courseId === course.id)) {
+          toast.info(language === "en" ? "Already in your choices" : "已在志願列表中");
+          return;
+        }
+        const updated = [...current, { courseId: course.id, rank: current.length + 1 }];
+        localStorage.setItem(LS_KEY, JSON.stringify(updated));
+      } catch { /* ignore */ }
     }
-    const currentChoices = choicesData?.choices ?? [];
-    if (currentChoices.length >= 20) {
-      toast.error(t("choices.max"));
-      return;
-    }
-    if (currentChoices.find((c) => c.courseId === course.id)) {
-      toast.info(language === "en" ? "Already in your choices" : "已在志願列表中");
-      return;
-    }
-    const newChoices = [...currentChoices, { courseId: course.id, rank: currentChoices.length + 1 }];
-    saveChoices.mutate({ choices: newChoices });
     toast.success(t("courses.addToChoices") + `: ${course.nameZhTw}`);
   }, [isAuthenticated, choicesData, saveChoices, t, language]);
 
   const clearFilters = () => {
-    setSearch("");
-    setDebouncedSearch("");
-    setDegreeTypes([]);
-    setInstitutions([]);
-    setDurations([]);
-    setQualifications([]);
-    setScoringMethods([]);
-    setScoreGaps([]);
-    setFundingTypes([]);
-    setInterviewArrangements([]);
-    setMinRequirements([]);
+    setSearch(""); setDebouncedSearch("");
+    setDegreeTypes([]); setInstitutions([]); setDurations([]);
+    setQualifications([]); setScoringMethods([]); setScoreGaps([]);
+    setFundingTypes([]); setInterviewArrangements([]);
     setGroupAOnly(undefined);
-    setTuitionRange([0, 100000]);
-    setSortBy("id");
-    setPage(1);
+    setTuitionMin(""); setTuitionMax("");
+    setSortBy("id"); setPage(1);
   };
 
   const hasActiveFilters = degreeTypes.length > 0 || institutions.length > 0 || durations.length > 0 ||
     qualifications.length > 0 || scoringMethods.length > 0 || scoreGaps.length > 0 ||
-    fundingTypes.length > 0 || interviewArrangements.length > 0 || minRequirements.length > 0 ||
-    groupAOnly !== undefined || tuitionRange[0] > 0 || tuitionRange[1] < 100000;
+    fundingTypes.length > 0 || interviewArrangements.length > 0 ||
+    groupAOnly !== undefined || tuitionMin !== "" || tuitionMax !== "";
+
+  // Institution display name based on language
+  const getInstitutionLabel = (key: string) => {
+    const map = INSTITUTION_MAP[key];
+    if (!map) return key;
+    if (language === "zh-CN") return map.zhCn;
+    if (language === "en") return map.en;
+    return map.zhTw;
+  };
+
+  // Degree type display name based on language
+  const getDegreeLabel = (key: string) => {
+    const map = DEGREE_TYPES_MAP[key];
+    if (!map) return key;
+    if (language === "zh-CN") return map.zhCn;
+    if (language === "en") return map.en;
+    return map.zhTw;
+  };
 
   const FilterContent = () => (
     <div className="space-y-1">
       <FilterSection title={t("courses.filter.degreeType")}>
-        <CheckboxGroup options={DEGREE_TYPES} selected={degreeTypes} onChange={(v) => { setDegreeTypes(v); setPage(1); }} />
+        <CheckboxGroup
+          options={DEGREE_TYPES}
+          selected={degreeTypes}
+          onChange={(v) => { setDegreeTypes(v); setPage(1); }}
+          labelFn={getDegreeLabel}
+        />
       </FilterSection>
       <Separator />
       <FilterSection title={t("courses.filter.institution")}>
@@ -393,6 +475,7 @@ export default function Courses() {
           options={INSTITUTIONS}
           selected={institutions}
           onChange={(v) => { setInstitutions(v); setPage(1); }}
+          labelFn={getInstitutionLabel}
         />
       </FilterSection>
       <Separator />
@@ -450,14 +533,6 @@ export default function Courses() {
         />
       </FilterSection>
       <Separator />
-      <FilterSection title={t("courses.filter.minReq")}>
-        <CheckboxGroup
-          options={MIN_REQUIREMENTS}
-          selected={minRequirements}
-          onChange={(v) => { setMinRequirements(v); setPage(1); }}
-        />
-      </FilterSection>
-      <Separator />
       <FilterSection title={t("courses.filter.groupA")}>
         <div className="space-y-1.5">
           {[
@@ -477,21 +552,32 @@ export default function Courses() {
         </div>
       </FilterSection>
       <Separator />
+      {/* Tuition: free text input instead of slider */}
       <FilterSection title={`${t("courses.filter.tuition")} (${t("courses.filter.tuition.unit")})`}>
-        <div className="px-1 pt-2">
-          <Slider
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            placeholder={language === "en" ? "Min" : "最低"}
+            value={tuitionMin}
+            onChange={(e) => { setTuitionMin(e.target.value); setPage(1); }}
+            className="h-7 text-xs"
             min={0}
-            max={100000}
-            step={1000}
-            value={tuitionRange}
-            onValueChange={(v) => { setTuitionRange(v as [number, number]); setPage(1); }}
-            className="mb-3"
+            max={200000}
           />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>${tuitionRange[0].toLocaleString()}</span>
-            <span>${tuitionRange[1].toLocaleString()}</span>
-          </div>
+          <span className="text-xs text-muted-foreground">—</span>
+          <Input
+            type="number"
+            placeholder={language === "en" ? "Max" : "最高"}
+            value={tuitionMax}
+            onChange={(e) => { setTuitionMax(e.target.value); setPage(1); }}
+            className="h-7 text-xs"
+            min={0}
+            max={200000}
+          />
         </div>
+        <p className="text-[10px] text-muted-foreground mt-1">
+          {language === "en" ? "Annual tuition in HKD" : language === "zh-CN" ? "每年学费（港元）" : "每年學費（港元）"}
+        </p>
       </FilterSection>
     </div>
   );
@@ -570,7 +656,7 @@ export default function Courses() {
 
       <div className="flex gap-6">
         {/* Desktop Sidebar Filters */}
-        <aside className="hidden lg:block w-56 shrink-0">
+        <aside className="hidden lg:block w-60 shrink-0">
           <div className="sticky top-20 bg-card border border-border rounded-xl p-4 max-h-[calc(100vh-6rem)] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-sm flex items-center gap-2">
@@ -611,7 +697,6 @@ export default function Courses() {
                     isFavorite={favoriteIds.includes(course.id)}
                     onToggleFavorite={handleToggleFavorite}
                     onAddToChoices={handleAddToChoices}
-                    isAuthenticated={isAuthenticated}
                   />
                 ))}
               </div>

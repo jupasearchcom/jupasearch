@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `courses` ADD COLUMN IF NOT EXISTS `institutionZhCn` varchar(100);\nALTER TABLE `courses` ADD COLUMN IF NOT EXISTS `institutionEn` varchar(150);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 39v32gWrepXHQS1.cd7c8f8f6cb8 --database S5boJc9BZRJrUGUv3iJavX --execute ALTER TABLE `courses` ADD COLUMN IF NOT EXISTS `institutionZhCn` varchar(100);\nALTER TABLE `courses` ADD COLUMN IF NOT EXISTS `institutionEn` varchar(150);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2518
+}

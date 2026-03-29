@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `courses` ADD `jupasUrl` varchar(500);\nALTER TABLE `courses` ADD `flexibleAdmission` boolean DEFAULT false;\nALTER TABLE `courses` ADD `acceptMultipleSittings` enum('yes_no_penalty','yes_with_penalty','no');\nALTER TABLE `courses` ADD `acceptAppliedLearning` boolean DEFAULT false;\nALTER TABLE `courses` ADD `acceptOtherLanguage` boolean DEFAULT false;\nALTER TABLE `courses` ADD `scoreFormula` json;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 39v32gWrepXHQS1.cd7c8f8f6cb8 --database S5boJc9BZRJrUGUv3iJavX --execute ALTER TABLE `courses` ADD `jupasUrl` varchar(500);\nALTER TABLE `courses` ADD `flexibleAdmission` boolean DEFAULT false;\nALTER TABLE `courses` ADD `acceptMultipleSittings` enum('yes_no_penalty','yes_with_penalty','no');\nALTER TABLE `courses` ADD `acceptAppliedLearning` boolean DEFAULT false;\nALTER TABLE `courses` ADD `acceptOtherLanguage` boolean DEFAULT false;\nALTER TABLE `courses` ADD `scoreFormula` json;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 6295
+}

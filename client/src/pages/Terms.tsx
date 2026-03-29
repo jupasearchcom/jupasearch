@@ -6,7 +6,7 @@ import { ChevronLeft, ScrollText } from "lucide-react";
 const content = {
   "zh-TW": {
     title: "使用條款",
-    lastUpdated: "最後更新：2025年1月",
+    lastUpdated: "最後更新：2026年3月",
     intro: "請在使用 JupaSearch 平台前仔細閱讀以下使用條款。使用本平台即表示您同意受以下條款約束。",
     sections: [
       {
@@ -15,11 +15,11 @@ const content = {
       },
       {
         heading: "服務說明",
-        body: `本平台為香港升學課程第三方資訊平台，提供 JUPAS 課程資訊查詢、比較及 AI 推薦等功能。本平台並非 JUPAS 官方平台，亦與任何香港院校無官方關聯。`,
+        body: `本平台為香港升學課程獨立資訊平台，提供 JUPAS 課程資訊查詢、比較、文憑試成績輸入及志願模擬等功能。本平台並非 JUPAS 官方平台，亦與任何香港院校無官方關聯。`,
       },
       {
         heading: "用戶帳戶",
-        body: `部分功能（如收藏課程、模擬志願、AI 推薦）需要登入帳戶方可使用。您有責任妥善保管帳戶資料，並對帳戶下之所有活動負責。如發現帳戶被未經授權使用，請立即通知我們。`,
+        body: `部分功能（如將文憑試成績永久儲存至帳戶）需要登入。收藏課程及模擬志願功能無需登入，資料儲存於本機瀏覽器，登入後可同步至帳戶。您有責任妥善保管帳戶資料，並對帳戶下之所有活動負責。如發現帳戶被未經授權使用，請立即通知我們。`,
       },
       {
         heading: "禁止行為",
@@ -45,7 +45,7 @@ const content = {
   },
   "zh-CN": {
     title: "使用条款",
-    lastUpdated: "最后更新：2025年1月",
+    lastUpdated: "最后更新：2026年3月",
     intro: "请在使用 JupaSearch 平台前仔细阅读以下使用条款。使用本平台即表示您同意受以下条款约束。",
     sections: [
       {
@@ -54,11 +54,11 @@ const content = {
       },
       {
         heading: "服务说明",
-        body: `本平台为香港升学课程第三方信息平台，提供 JUPAS 课程信息查询、比较及 AI 推荐等功能。本平台并非 JUPAS 官方平台，亦与任何香港院校无官方关联。`,
+        body: `本平台为香港升学课程独立信息平台，提供 JUPAS 课程信息查询、比较、文凭试成绩输入及志愿模拟等功能。本平台并非 JUPAS 官方平台，亦与任何香港院校无官方关联。`,
       },
       {
         heading: "用户账户",
-        body: `部分功能（如收藏课程、模拟志愿、AI 推荐）需要登录账户方可使用。您有责任妥善保管账户资料，并对账户下之所有活动负责。如发现账户被未经授权使用，请立即通知我们。`,
+        body: `部分功能（如将文凭试成绩永久保存至账户）需要登录。收藏课程及模拟志愿功能无需登录，资料储存于本机浏览器，登录后可同步至账户。您有责任妥善保管账户资料，并对账户下之所有活动负责。如发现账户被未经授权使用，请立即通知我们。`,
       },
       {
         heading: "禁止行为",
@@ -84,7 +84,7 @@ const content = {
   },
   en: {
     title: "Terms of Use",
-    lastUpdated: "Last updated: January 2025",
+    lastUpdated: "Last updated: March 2026",
     intro: "Please read the following Terms of Use carefully before using the JupaSearch platform. By using this Platform, you agree to be bound by these terms.",
     sections: [
       {
@@ -93,11 +93,11 @@ const content = {
       },
       {
         heading: "Description of Service",
-        body: `This Platform is a third-party information platform for Hong Kong higher education courses, providing JUPAS course information search, comparison, and AI recommendation features. This Platform is not the official JUPAS platform and has no official affiliation with any Hong Kong institution.`,
+        body: `This Platform is an independent information platform for Hong Kong higher education courses, providing JUPAS course search, comparison, DSE score input, and choice simulation features. This Platform is not the official JUPAS platform and has no official affiliation with any Hong Kong institution.`,
       },
       {
         heading: "User Accounts",
-        body: `Certain features (such as saving courses, simulating JUPAS choices, and AI recommendations) require a user account. You are responsible for maintaining the confidentiality of your account information and for all activities that occur under your account. Please notify us immediately if you discover any unauthorised use of your account.`,
+        body: `Some features (such as permanently saving DSE scores to your account) require login. Favouriting courses and simulating choices do not require login; data is stored locally in the browser and can be synced to your account after login. You are responsible for maintaining the confidentiality of your account information and for all activities that occur under your account. Please notify us immediately if you discover any unauthorised use of your account.`,
       },
       {
         heading: "Prohibited Conduct",

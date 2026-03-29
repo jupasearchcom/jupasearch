@@ -1,19 +1,20 @@
-import { useParams, Link } from "wouter";
+import { Link, useParams } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCompare } from "@/contexts/CompareContext";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft, Heart, BarChart2, Plus, ExternalLink,
   GraduationCap, Calendar, DollarSign, Users, TrendingUp,
-  BookOpen, Award, Loader2, AlertCircle,
+  BookOpen, Award, Loader2, AlertCircle, Globe,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getLoginUrl } from "@/const";
+import { getLocalFavoriteIds, setLocalFavoriteIds } from "./Favorites";
+import { useState, useEffect } from "react";
 
 function InfoCard({ icon: Icon, label, value, highlight = false }: {
   icon: React.ElementType; label: string; value: string; highlight?: boolean;
@@ -43,12 +44,74 @@ export default function CourseDetail() {
     { enabled: !!id }
   );
 
-  const { data: favoriteIds = [] } = trpc.favorites.ids.useQuery(undefined, { enabled: isAuthenticated });
+  // Favorites — server (logged in) or local (guest)
+  const { data: serverFavoriteIds = [] } = trpc.favorites.ids.useQuery(undefined, { enabled: isAuthenticated });
+  const [localFavIds, setLocalFavIds] = useState<number[]>(() => getLocalFavoriteIds());
   const utils = trpc.useUtils();
   const addFav = trpc.favorites.add.useMutation({ onSuccess: () => utils.favorites.ids.invalidate() });
   const removeFav = trpc.favorites.remove.useMutation({ onSuccess: () => utils.favorites.ids.invalidate() });
+
+  // Choices — server (logged in) or local (guest)
   const { data: choicesData } = trpc.choices.get.useQuery(undefined, { enabled: isAuthenticated });
   const saveChoices = trpc.choices.save.useMutation({ onSuccess: () => utils.choices.get.invalidate() });
+
+  const courseId = course?.id;
+  const isFavorite = isAuthenticated
+    ? serverFavoriteIds.includes(courseId ?? 0)
+    : localFavIds.includes(courseId ?? 0);
+  const inCompare = isInCompare(courseId ?? 0);
+
+  const handleToggleFavorite = () => {
+    if (!courseId) return;
+    if (isAuthenticated) {
+      if (isFavorite) {
+        removeFav.mutate({ courseId });
+      } else {
+        addFav.mutate({ courseId });
+      }
+    } else {
+      // Guest mode: use localStorage
+      const current = getLocalFavoriteIds();
+      let updated: number[];
+      if (current.includes(courseId)) {
+        updated = current.filter((id) => id !== courseId);
+        toast.success(t("courses.removeFromFavorites"));
+      } else {
+        updated = [...current, courseId];
+        toast.success(t("courses.addToFavorites"));
+      }
+      setLocalFavoriteIds(updated);
+      setLocalFavIds(updated);
+    }
+  };
+
+  const handleAddToChoices = () => {
+    if (!courseId || !course) return;
+    if (isAuthenticated) {
+      const currentChoices = choicesData?.choices ?? [];
+      if (currentChoices.length >= 20) { toast.error(t("choices.max")); return; }
+      if (currentChoices.find((c) => c.courseId === courseId)) {
+        toast.info(language === "en" ? "Already in your choices" : "已在志願列表中");
+        return;
+      }
+      saveChoices.mutate({ choices: [...currentChoices, { courseId, rank: currentChoices.length + 1 }] });
+    } else {
+      // Guest mode: use localStorage
+      const LS_KEY = "jupasearch_choices";
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        const current: { courseId: number; rank: number }[] = raw ? JSON.parse(raw) : [];
+        if (current.length >= 20) { toast.error(t("choices.max")); return; }
+        if (current.find((c) => c.courseId === courseId)) {
+          toast.info(language === "en" ? "Already in your choices" : "已在志願列表中");
+          return;
+        }
+        const updated = [...current, { courseId, rank: current.length + 1 }];
+        localStorage.setItem(LS_KEY, JSON.stringify(updated));
+        toast.success(t("courses.addToChoices"));
+      } catch { toast.error("Error"); }
+    }
+  };
 
   if (isLoading) {
     return (
@@ -82,42 +145,13 @@ export default function CourseDetail() {
   const careers = language === "zh-CN" ? (course.careerProspectsZhCn || course.careerProspectsZhTw) :
     language === "en" ? (course.careerProspectsEn || course.careerProspectsZhTw) : course.careerProspectsZhTw;
 
-  const isFavorite = favoriteIds.includes(course.id);
-  const inCompare = isInCompare(course.id);
+  const institutionName = language === "zh-CN" ? (course.institutionZhCn || course.institution) :
+    language === "en" ? (course.institutionEn || course.institution) : course.institution;
 
-  const handleToggleFavorite = () => {
-    if (!isAuthenticated) {
-      toast.error(t("common.loginRequired"), {
-        action: { label: t("nav.login"), onClick: () => window.location.href = getLoginUrl() },
-      });
-      return;
-    }
-    if (isFavorite) {
-      removeFav.mutate({ courseId: course.id });
-    } else {
-      addFav.mutate({ courseId: course.id });
-    }
-  };
-
-  const handleAddToChoices = () => {
-    if (!isAuthenticated) {
-      toast.error(t("common.loginRequired"), {
-        action: { label: t("nav.login"), onClick: () => window.location.href = getLoginUrl() },
-      });
-      return;
-    }
-    const currentChoices = choicesData?.choices ?? [];
-    if (currentChoices.length >= 20) {
-      toast.error(t("choices.max"));
-      return;
-    }
-    if (currentChoices.find((c) => c.courseId === course.id)) {
-      toast.info(language === "en" ? "Already in your choices" : "已在志願列表中");
-      return;
-    }
-    saveChoices.mutate({ choices: [...currentChoices, { courseId: course.id, rank: currentChoices.length + 1 }] });
-    toast.success(t("courses.addToChoices"));
-  };
+  const scoringLabel = course.scoringMethod === "best5" ? "Best 5" :
+    course.scoringMethod === "best6" ? "Best 6" :
+    course.scoringMethod === "best4" ? "Best 4" :
+    course.scoringMethod === "2c3x" ? "2C+3X" : "—";
 
   return (
     <div className="container py-6 max-w-4xl">
@@ -151,10 +185,10 @@ export default function CourseDetail() {
             <h1 className="text-2xl font-bold mb-1" style={{ fontFamily: "'Playfair Display', 'Noto Serif TC', serif" }}>
               {name}
             </h1>
-            <p className="text-muted-foreground">{course.institution}</p>
+            <p className="text-muted-foreground">{institutionName}</p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="outline"
               size="sm"
@@ -215,8 +249,8 @@ export default function CourseDetail() {
               {[
                 { label: t("courses.col.admitted"), value: course.lastYearAdmitted?.toString() ?? "—" },
                 { label: t("courses.col.groupA"), value: course.lastYearGroupAAdmitted?.toString() ?? "—" },
-                { label: language === "en" ? "Group A Applicants" : "組別A申請人數", value: course.lastYearGroupAApplicants?.toString() ?? "—" },
-                { label: language === "en" ? "Total Applicants" : "總申請人數", value: course.lastYearTotalApplicants?.toString() ?? "—" },
+                { label: t("courses.col.groupAApplicants"), value: course.lastYearGroupAApplicants?.toString() ?? "—" },
+                { label: t("courses.col.totalApplicants"), value: course.lastYearTotalApplicants?.toString() ?? "—" },
               ].map(({ label, value }) => (
                 <div key={label} className="p-3 bg-secondary rounded-lg">
                   <div className="text-xs text-muted-foreground mb-1">{label}</div>
@@ -240,16 +274,16 @@ export default function CourseDetail() {
 
         {/* Sidebar */}
         <div className="space-y-4">
-          {/* Basic Info */}
+          {/* Basic Info — no scoreGap */}
           <div className="bg-card border border-border rounded-xl p-4">
             <h3 className="font-semibold text-sm mb-3">{t("detail.basicInfo")}</h3>
             <dl className="space-y-2">
               {[
                 { label: t("courses.filter.qualification"), value: course.qualification ? t(`qual.${course.qualification}`) : "—" },
-                { label: t("courses.filter.scoring"), value: course.scoringMethod ? (course.scoringMethod === "best5" ? "Best 5" : course.scoringMethod === "best6" ? "Best 6" : course.scoringMethod === "best4" ? "Best 4" : "2C+3X") : "—" },
+                { label: t("courses.filter.scoring"), value: scoringLabel },
                 { label: t("courses.filter.funding"), value: course.fundingType ? t(`funding.${course.fundingType}`) : "—" },
-                { label: t("courses.filter.scoreGap"), value: course.scoreGap ? t(`scoreGap.${course.scoreGap}`) : "—" },
                 { label: t("courses.filter.groupA"), value: course.groupAOnly ? t("common.yes") : t("common.no") },
+                { label: t("courses.filter.interview"), value: course.interviewArrangement ? t(`interview.${course.interviewArrangement}`) : "—" },
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between items-start gap-2">
                   <dt className="text-xs text-muted-foreground">{label}</dt>
@@ -288,20 +322,36 @@ export default function CourseDetail() {
             {course.interviewArrangement && (
               <div>
                 <p className="text-xs text-muted-foreground mb-1.5">{t("detail.interviewReq")}</p>
-                <p className="text-xs">{course.interviewArrangement}</p>
+                <p className="text-xs">{t(`interview.${course.interviewArrangement}`)}</p>
+              </div>
+            )}
+            {course.minRequirement && (
+              <div className="mt-3">
+                <p className="text-xs text-muted-foreground mb-1.5">{t("courses.col.minReq")}</p>
+                <p className="text-xs font-medium">{course.minRequirement}</p>
               </div>
             )}
           </div>
 
-          {/* Website */}
-          {course.websiteUrl && (
-            <a href={course.websiteUrl} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm" className="w-full gap-2">
-                <ExternalLink className="w-4 h-4" />
-                {t("detail.website")}
-              </Button>
-            </a>
-          )}
+          {/* Websites — split into university and JUPAS */}
+          <div className="space-y-2">
+            {course.websiteUrl && (
+              <a href={course.websiteUrl} target="_blank" rel="noopener noreferrer" className="block">
+                <Button variant="outline" size="sm" className="w-full gap-2">
+                  <Globe className="w-4 h-4" />
+                  {t("detail.website")}
+                </Button>
+              </a>
+            )}
+            {course.jupasUrl && (
+              <a href={course.jupasUrl} target="_blank" rel="noopener noreferrer" className="block">
+                <Button variant="outline" size="sm" className="w-full gap-2">
+                  <ExternalLink className="w-4 h-4" />
+                  {t("detail.jupasUrl")}
+                </Button>
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -5,6 +5,7 @@ import {
   InsertCourse,
   InsertUser,
   courses,
+  dseScores,
   jupasChoices,
   savedReports,
   userFavorites,
@@ -300,4 +301,26 @@ export async function saveReport(userId: number, title: string, courseIds: numbe
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.insert(savedReports).values({ userId, title, courseIds, reportUrl });
+}
+
+// ─── DSE Scores helpers ───────────────────────────────────────────────────────
+export async function saveDseScores(userId: number, scores: Record<string, string | undefined>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Filter out undefined values
+  const cleanScores: Record<string, string> = {};
+  for (const [k, v] of Object.entries(scores)) {
+    if (v !== undefined) cleanScores[k] = v;
+  }
+  await db
+    .insert(dseScores)
+    .values({ userId, scores: cleanScores })
+    .onDuplicateKeyUpdate({ set: { scores: cleanScores, updatedAt: new Date() } });
+}
+
+export async function getDseScores(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(dseScores).where(eq(dseScores.userId, userId)).limit(1);
+  return result[0]?.scores ?? null;
 }

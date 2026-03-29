@@ -39,6 +39,8 @@ export const courses = mysqlTable("courses", {
   // Classification
   degreeType: varchar("degreeType", { length: 30 }), // BA, BSc, BEng, BEd, BLaw, BBA, etc.
   institution: varchar("institution", { length: 100 }).notNull(),
+  institutionZhCn: varchar("institutionZhCn", { length: 100 }),
+  institutionEn: varchar("institutionEn", { length: 150 }),
   institutionCode: varchar("institutionCode", { length: 20 }),
   duration: int("duration"), // 2, 4, 5, 6 years
   qualification: mysqlEnum("qualification", ["bachelor", "higher_diploma", "associate_degree"]).default("bachelor"),
@@ -87,6 +89,20 @@ export const courses = mysqlTable("courses", {
   careerProspectsZhCn: text("careerProspectsZhCn"),
   careerProspectsEn: text("careerProspectsEn"),
   websiteUrl: varchar("websiteUrl", { length: 500 }),
+  jupasUrl: varchar("jupasUrl", { length: 500 }),
+  // Extra admission flags
+  flexibleAdmission: boolean("flexibleAdmission").default(false),
+  acceptMultipleSittings: mysqlEnum("acceptMultipleSittings", ["yes_no_penalty", "yes_with_penalty", "no"]),
+  acceptAppliedLearning: boolean("acceptAppliedLearning").default(false),
+  acceptOtherLanguage: boolean("acceptOtherLanguage").default(false),
+  // Score formula (JSON): detailed per-subject rules for "My Score" calculation
+  scoreFormula: json("scoreFormula").$type<{
+    method: string; // best5 | best6 | best4 | 2c3x
+    required: string[]; // subjects that MUST be included
+    excluded: string[]; // subjects that CANNOT be included
+    weighted: { subject: string; multiplier: number }[];
+    coreSubjects: string[]; // for 2c3x: the core subjects
+  }>(),
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -126,3 +142,12 @@ export const savedReports = mysqlTable("saved_reports", {
 });
 
 export type SavedReport = typeof savedReports.$inferSelect;
+
+// ─── DSE Scores (per user) ────────────────────────────────────────────────────
+export const dseScores = mysqlTable("dse_scores", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(), // one record per user
+  scores: json("scores").$type<Record<string, string>>().default({}),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type DseScores = typeof dseScores.$inferSelect;

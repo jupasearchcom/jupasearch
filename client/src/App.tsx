@@ -16,29 +16,44 @@ import Admin from "./pages/Admin";
 import Disclaimer from "./pages/Disclaimer";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
+import DSEScores from "./pages/DSEScores";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import CompareBar from "./components/CompareBar";
 import DisclaimerBanner from "./components/DisclaimerBanner";
 import { CompareProvider } from "./contexts/CompareContext";
+import { useEffect } from "react";
+import { useLocation } from "wouter";
+
+function ScrollToTop() {
+  const [location] = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [location]);
+  return null;
+}
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/courses" component={Courses} />
-      <Route path="/courses/:id" component={CourseDetail} />
-      <Route path="/favorites" component={Favorites} />
-      <Route path="/choices" component={Choices} />
-      <Route path="/ai" component={AIAdvisor} />
-      <Route path="/compare" component={Compare} />
-      <Route path="/admin" component={Admin} />
-      <Route path="/disclaimer" component={Disclaimer} />
-      <Route path="/terms" component={Terms} />
-      <Route path="/privacy" component={Privacy} />
-      <Route path="/404" component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
+    <>
+      <ScrollToTop />
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/courses" component={Courses} />
+        <Route path="/courses/:id" component={CourseDetail} />
+        <Route path="/favorites" component={Favorites} />
+        <Route path="/choices" component={Choices} />
+        <Route path="/dse" component={DSEScores} />
+        <Route path="/ai" component={AIAdvisor} />
+        <Route path="/compare" component={Compare} />
+        <Route path="/admin" component={Admin} />
+        <Route path="/disclaimer" component={Disclaimer} />
+        <Route path="/terms" component={Terms} />
+        <Route path="/privacy" component={Privacy} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </>
   );
 }
 

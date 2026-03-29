@@ -6,7 +6,7 @@ import { ChevronLeft, AlertTriangle } from "lucide-react";
 const content = {
   "zh-TW": {
     title: "免責聲明",
-    lastUpdated: "最後更新：2025年1月",
+    lastUpdated: "最後更新：2026年3月",
     sections: [
       {
         heading: "資料性質",
@@ -14,11 +14,7 @@ const content = {
       },
       {
         heading: "資料準確性",
-        body: `本平台盡力確保所載資料之準確性，惟不保證任何資料之完整性、及時性或適用性。課程資料可能隨院校政策更改而有所變動，用戶在作出任何升學決定前，務必向相關院校或官方渠道（如 JUPAS 官方網站 www.jupas.edu.hk）核實最新資訊。`,
-      },
-      {
-        heading: "AI 推薦功能",
-        body: `本平台提供之 AI 課程推薦功能，僅供參考之用。AI 分析結果並不構成任何專業升學輔導意見。用戶應結合個人實際情況、諮詢專業升學顧問，並參閱官方資料後，方可作出最終升學決定。`,
+        body: `本平台盡力確保所載資料之準確性，惴不保證任何資料之完整性、及時性或適用性。課程資料可能隨院校政策更改而有所變動，用戶在作出任何升學決定前，務必向相關院校或官方渠道（如 JUPAS 官方網站 www.jupas.edu.hk）核實最新資訊。`,
       },
       {
         heading: "責任限制",
@@ -36,7 +32,7 @@ const content = {
   },
   "zh-CN": {
     title: "免责声明",
-    lastUpdated: "最后更新：2025年1月",
+    lastUpdated: "最后更新：2026年3月",
     sections: [
       {
         heading: "资料性质",
@@ -44,11 +40,7 @@ const content = {
       },
       {
         heading: "资料准确性",
-        body: `本平台尽力确保所载资料之准确性，惟不保证任何资料之完整性、及时性或适用性。课程资料可能随院校政策更改而有所变动，用户在作出任何升学决定前，务必向相关院校或官方渠道（如 JUPAS 官方网站 www.jupas.edu.hk）核实最新信息。`,
-      },
-      {
-        heading: "AI 推荐功能",
-        body: `本平台提供之 AI 课程推荐功能，仅供参考之用。AI 分析结果并不构成任何专业升学辅导意见。用户应结合个人实际情况、咨询专业升学顾问，并参阅官方资料后，方可作出最终升学决定。`,
+        body: `本平台尽力确保所载资料之准确性，惴不保证任何资料之完整性、及时性或适用性。课程资料可能随院校政策更改而有所变动，用户在作出任何升学决定前，务必向相关院校或官方渠道（如 JUPAS 官方网站 www.jupas.edu.hk）核实最新信息。`,
       },
       {
         heading: "责任限制",
@@ -66,7 +58,7 @@ const content = {
   },
   en: {
     title: "Disclaimer",
-    lastUpdated: "Last updated: January 2025",
+    lastUpdated: "Last updated: March 2026",
     sections: [
       {
         heading: "Nature of Information",
@@ -75,10 +67,6 @@ const content = {
       {
         heading: "Accuracy of Information",
         body: `While this Platform strives to ensure the accuracy of all information, we make no warranty as to the completeness, timeliness, or suitability of any information. Course details may change in accordance with institutional policies. Before making any academic decisions, users must verify the latest information with the relevant institution or official channels (e.g., the official JUPAS website at www.jupas.edu.hk).`,
-      },
-      {
-        heading: "AI Recommendation Feature",
-        body: `The AI course recommendation feature provided by this Platform is for reference purposes only. AI analysis results do not constitute professional academic counselling advice. Users should consider their personal circumstances, consult professional academic advisors, and refer to official information before making any final academic decisions.`,
       },
       {
         heading: "Limitation of Liability",

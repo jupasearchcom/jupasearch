@@ -1,0 +1,12 @@
+{
+  "query": "CREATE TABLE `dse_scores` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `scores` json DEFAULT ('{}'),\n  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `dse_scores_id` PRIMARY KEY(`id`),\n  CONSTRAINT `dse_scores_userId_unique` UNIQUE(`userId`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 39v32gWrepXHQS1.cd7c8f8f6cb8 --database S5boJc9BZRJrUGUv3iJavX --execute CREATE TABLE `dse_scores` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `scores` json DEFAULT ('{}'),\n  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `dse_scores_id` PRIMARY KEY(`id`),\n  CONSTRAINT `dse_scores_userId_unique` UNIQUE(`userId`)\n);",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your TiDB version for the right syntax to use line 4 column 30 near \"'{}'),",
+    "  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,",
+    "  CONSTRAINT `dse_scores_id` PRIMARY KEY(`id`),",
+    "  CONSTRAINT `dse_scores_userId_unique` UNIQUE(`userId`)",
+    ")\""
+  ]
+}
