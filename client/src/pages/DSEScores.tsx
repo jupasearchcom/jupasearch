@@ -133,7 +133,7 @@ function gradeToScore(grade: string): number {
 
 export default function DSEScores() {
   const { language } = useLanguage();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [scores, setScores] = useState<DSEScoreData>(loadFromCookie);
   const [saved, setSaved] = useState(false);
 
@@ -144,8 +144,10 @@ export default function DSEScores() {
     onError: (e) => toast.error(e.message),
   });
 
+  // Only query when auth is fully resolved AND user is authenticated
+  // This prevents the global redirect triggered by protectedProcedure when called unauthenticated
   const { data: savedScores } = trpc.dse.getScores.useQuery(undefined, {
-    enabled: isAuthenticated,
+    enabled: !authLoading && isAuthenticated,
   });
 
   useEffect(() => {
@@ -155,7 +157,8 @@ export default function DSEScores() {
   }, [savedScores]);
 
   const handleChange = (key: keyof DSEScoreData, value: string) => {
-    const next = { ...scores, [key]: value };
+    // "none" means clear the selection
+    const next = { ...scores, [key]: value === "none" ? "" : value };
     setScores(next);
     saveToCookie(next);
     setSaved(false);
@@ -384,7 +387,7 @@ export default function DSEScores() {
                       <SelectValue placeholder={t.selectSubject[l]} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">—</SelectItem>
+                      <SelectItem value="none">—</SelectItem>
                       {electives.map((s) => (
                         <SelectItem key={s} value={s}>{s}</SelectItem>
                       ))}
@@ -460,7 +463,7 @@ export default function DSEScores() {
                 <SelectValue placeholder={t.selectSubject[l]} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">—</SelectItem>
+                <SelectItem value="none">—</SelectItem>
                 {(otherLanguageOptions[language as keyof typeof otherLanguageOptions] ?? otherLanguageOptions["zh-TW"]).map((lang) => (
                   <SelectItem key={lang} value={lang}>{lang}</SelectItem>
                 ))}

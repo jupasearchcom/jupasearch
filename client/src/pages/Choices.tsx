@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Link } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -104,22 +104,22 @@ export default function Choices() {
     }
   }, [isAuthenticated, pendingIds, initialized]);
 
-  // Fetch course details for all courseIds (choices + pending)
-  const allIds = Array.from(new Set([...localChoices.map((c) => c.courseId), ...pendingIds]));
+  // Fetch course details for all courseIds (choices + pending) using getByIds
+  const allIds = useMemo(() => Array.from(new Set([...localChoices.map((c) => c.courseId), ...pendingIds])), [localChoices, pendingIds]);
   const [courseDetails, setCourseDetails] = useState<Record<number, Course>>({});
 
-  const { data: coursesData } = trpc.courses.list.useQuery(
-    { pageSize: 500 },
+  const { data: byIdsData } = trpc.courses.getByIds.useQuery(
+    { ids: allIds },
     { enabled: allIds.length > 0 }
   );
 
   useEffect(() => {
-    if (coursesData?.courses) {
+    if (byIdsData) {
       const map: Record<number, Course> = {};
-      coursesData.courses.forEach((c) => { map[c.id] = c; });
+      byIdsData.forEach((c) => { map[c.id] = c; });
       setCourseDetails(map);
     }
-  }, [coursesData]);
+  }, [byIdsData]);
 
   // ─── Drag & Drop ──────────────────────────────────────────────────────────
   const dragIndex = useRef<number | null>(null);

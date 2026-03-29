@@ -11,6 +11,7 @@ import {
   deleteCourse,
   getCourseById,
   getCourses,
+  getCoursesByIds,
   getDistinctValues,
   getFavoriteIds,
   getJupasChoices,
@@ -70,6 +71,7 @@ const courseInputSchema = z.object({
   careerProspectsEn: z.string().optional(),
   websiteUrl: z.string().url().optional().or(z.literal("")),
   jupasUrl: z.string().url().optional().or(z.literal("")),
+  jupasOfficialUrl: z.string().url().optional().or(z.literal("")),
   flexibleAdmission: z.boolean().optional(),
   acceptMultipleSittings: z.enum(["yes_no_penalty", "yes_with_penalty", "no"]).optional(),
   acceptAppliedLearning: z.boolean().optional(),
@@ -159,6 +161,11 @@ export const appRouter = router({
     filterOptions: publicProcedure.query(async () => {
       return getDistinctValues();
     }),
+    getByIds: publicProcedure
+      .input(z.object({ ids: z.array(z.number()) }))
+      .query(async ({ input }) => {
+        return getCoursesByIds(input.ids);
+      }),
 
     // Compute "My Score" for a list of courses given DSE scores
     computeMyScores: publicProcedure

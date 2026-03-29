@@ -343,11 +343,11 @@ export default function CourseDetail() {
                 </Button>
               </a>
             )}
-            {course.jupasUrl && (
-              <a href={course.jupasUrl} target="_blank" rel="noopener noreferrer" className="block">
+            {course.jupasOfficialUrl && (
+              <a href={course.jupasOfficialUrl} target="_blank" rel="noopener noreferrer" className="block">
                 <Button variant="outline" size="sm" className="w-full gap-2">
                   <ExternalLink className="w-4 h-4" />
-                  {t("detail.jupasUrl")}
+                  {language === "en" ? "JUPAS Official Page" : language === "zh-CN" ? "JUPAS 官方页面" : "JUPAS 官方頁面"}
                 </Button>
               </a>
             )}

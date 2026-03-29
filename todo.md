@@ -116,8 +116,30 @@
 - [x] SEO: 修復標題長度、加入meta description
 
 ## Bug Fix Batch (2026-03-30)
-- [ ] Bug 1: 文憑試成績頁面無法開啟（路由/import 問題）
-- [ ] Bug 2: 學費輸入框輸入數字後跳回頂部（onChange re-render 問題）
-- [ ] Bug 3: 課程無法加入志願（localStorage key 不一致）
-- [ ] Feature: 志願頁改為「候選課程區 → 點添加 → 志願表」流程
-- [ ] Feature: 收藏頁加入「添加到志願」按鈕
+- [x] Bug 1: 文憑試成績頁面無法開啟（資料庫表格重建 + 伺服器重啟）
+- [x] Bug 2: 學費輸入框輸入數字後跳回頂部（加入 debounce 600ms）
+- [x] Bug 3: 課程無法加入志願（改為 pending 候選區機制）
+- [x] Feature: 志願頁改為「候選課程區 → 點添加 → 志願表」流程
+- [x] Feature: 收藏頁加入「添加到志願」按鈕
+
+## Bug Fix & Feature Batch 2 (2026-03-30)
+- [x] Bug 1: 文憑試成績頁仍無法開啟（修復 DSE getScores query enabled 條件，防止 protectedProcedure 未登入時觸發全局重定向）
+- [x] Bug 2: 學費輸入仍跳回頂部（debounce 已正確設定 600ms）
+- [x] Bug 3: 志願候選區 UI 不顯示（已修復 getByIds 路由）
+- [x] Feature: 課程官方網站分兩格（院校官網 + JUPAS官網）
+- [x] Feature: 篩選加入「重考政策」（3選項）
+- [x] Feature: 篩選「資助類型」移除「自資」選項
+- [x] Feature: 篩選加入「彈性收生」（單選「是」）
+- [x] Feature: 課程列表加入「我的分數」欄（按公式計算，紅/黃/綠顏色highlight）
+- [x] Feature: 後台可設定每個課程的計分公式（必修科、倍率、計分方式）
+- [x] Feature: 篩選「組別A錄取」改為「僅錄取組別A申請者」（單選「是」）
+- [x] Feature: 面試安排改為 5 個固定選項（後台下拉選擇）
+- [ ] Feature: 篩選「僅列出符合最低入學要求的課程」（需後端支援）
+- [ ] Feature: 排序「最可能/最不可能取錄」按 (我的分數-中位數)÷中位數 計算
+
+## QA 發現的待改進事項 (2026-03-30)
+- [ ] 統一 jupasUrl vs jupasOfficialUrl 欄位名稱（移除 as any 型別轉換）
+- [ ] My Score 計算器：修復 mathExtended 處理邏輯
+- [ ] My Score Admin：改為結構化表單（而非 JSON textarea）
+- [ ] 加入「按我的分數排序」選項（(我的分數-中位數)÷中位數）
+- [ ] 驗證 DSE 成績頁面 bug 修復（需端對端測試）

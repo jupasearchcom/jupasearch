@@ -77,6 +77,10 @@ interface CourseFormData {
   descriptionZhTw: string;
   careerProspectsZhTw: string;
   websiteUrl: string;
+  jupasOfficialUrl: string;
+  acceptMultipleSittings: string;
+  flexibleAdmission: boolean;
+  scoreFormulaJson: string; // JSON string for scoreFormula
 }
 
 const emptyForm: CourseFormData = {
@@ -88,6 +92,8 @@ const emptyForm: CourseFormData = {
   groupAOnly: false, scoreGap: "", fundingType: "", tuitionFee: "",
   scoringMethodChanged: false, isNew: false,
   descriptionZhTw: "", careerProspectsZhTw: "", websiteUrl: "",
+  jupasOfficialUrl: "", acceptMultipleSittings: "", flexibleAdmission: false,
+  scoreFormulaJson: "",
 };
 
 function courseToForm(course: Course): CourseFormData {
@@ -119,6 +125,10 @@ function courseToForm(course: Course): CourseFormData {
     descriptionZhTw: course.descriptionZhTw ?? "",
     careerProspectsZhTw: course.careerProspectsZhTw ?? "",
     websiteUrl: course.websiteUrl ?? "",
+    jupasOfficialUrl: course.jupasOfficialUrl ?? "",
+    acceptMultipleSittings: (course as any).acceptMultipleSittings ?? "",
+    flexibleAdmission: (course as any).flexibleAdmission ?? false,
+    scoreFormulaJson: course.scoreFormula ? JSON.stringify(course.scoreFormula, null, 2) : "",
   };
 }
 
@@ -151,6 +161,13 @@ function formToInput(form: CourseFormData) {
     descriptionZhTw: form.descriptionZhTw || undefined,
     careerProspectsZhTw: form.careerProspectsZhTw || undefined,
     websiteUrl: form.websiteUrl || undefined,
+    jupasOfficialUrl: form.jupasOfficialUrl || undefined,
+    acceptMultipleSittings: (form.acceptMultipleSittings as ("yes_no_penalty" | "yes_with_penalty" | "no")) || undefined,
+    flexibleAdmission: form.flexibleAdmission,
+    scoreFormula: (() => {
+      if (!form.scoreFormulaJson.trim()) return undefined;
+      try { return JSON.parse(form.scoreFormulaJson); } catch { return undefined; }
+    })(),
     moduleType: "jupas" as const,
   };
 }
@@ -316,7 +333,26 @@ function CourseFormDialog({
             </Select>
           </FormField>
           <FormField label="面試安排">
-            <Input value={form.interviewArrangement} onChange={(e) => set("interviewArrangement", e.target.value)} placeholder="例：所有申請者需參加面試" />
+            <Select value={form.interviewArrangement} onValueChange={(v) => set("interviewArrangement", v)}>
+              <SelectTrigger><SelectValue placeholder="選擇面試安排" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all_applicants">所有申請者均需面試 (Yes for all)</SelectItem>
+                <SelectItem value="selective_basis">選擇性面試 (Yes selective)</SelectItem>
+                <SelectItem value="may_require">可能需要面試 (May require)</SelectItem>
+                <SelectItem value="special_cases">特殊情況才面試 (Special cases)</SelectItem>
+                <SelectItem value="no_interview">不設面試 (No)</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="重考政策">
+            <Select value={form.acceptMultipleSittings} onValueChange={(v) => set("acceptMultipleSittings", v)}>
+              <SelectTrigger><SelectValue placeholder="選擇重考政策" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="yes_no_penalty">接受重考（不扣分）</SelectItem>
+                <SelectItem value="yes_with_penalty">接受重考（扣分）</SelectItem>
+                <SelectItem value="no">不接受重考</SelectItem>
+              </SelectContent>
+            </Select>
           </FormField>
 
           {/* Flags */}
@@ -335,6 +371,10 @@ function CourseFormDialog({
             <Switch checked={form.isNew} onCheckedChange={(v) => set("isNew", v)} />
             <Label className="text-sm">新課程</Label>
           </div>
+          <div className="flex items-center gap-3">
+            <Switch checked={form.flexibleAdmission} onCheckedChange={(v) => set("flexibleAdmission", v)} />
+            <Label className="text-sm">彈性收生</Label>
+          </div>
 
           {/* Description */}
           <div className="col-span-2 mt-2">
@@ -351,9 +391,31 @@ function CourseFormDialog({
             </FormField>
           </div>
           <div className="col-span-2">
-            <FormField label="官方網站 URL">
-              <Input value={form.websiteUrl} onChange={(e) => set("websiteUrl", e.target.value)} placeholder="https://..." />
+            <FormField label="院校官方課程網站 URL">
+              <Input value={form.websiteUrl} onChange={(e) => set("websiteUrl", e.target.value)} placeholder="https://...（院校官網課程頁面）" />
             </FormField>
+          </div>
+          <div className="col-span-2">
+            <FormField label="JUPAS 官方課程網站 URL">
+              <Input value={form.jupasOfficialUrl} onChange={(e) => set("jupasOfficialUrl", e.target.value)} placeholder="https://www.jupas.edu.hk/..." />
+            </FormField>
+          </div>
+
+          {/* My Score Formula */}
+          <div className="col-span-2 mt-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">「我的分數」計算公式</h4>
+            <p className="text-[10px] text-muted-foreground mb-2">輸入 JSON 格式的計分公式。必須包含 method、required、excluded、weighted、coreSubjects 五個欄位。</p>
+            <Textarea
+              value={form.scoreFormulaJson}
+              onChange={(e) => set("scoreFormulaJson", e.target.value)}
+              rows={5}
+              placeholder='{"method":"best5","required":["chinese","english"],"excluded":[],"weighted":[],"coreSubjects":[]}'
+              className="font-mono text-xs"
+            />
+            {form.scoreFormulaJson && (() => {
+              try { JSON.parse(form.scoreFormulaJson); return <p className="text-[10px] text-green-500 mt-1">✓ JSON 格式正確</p>; }
+              catch { return <p className="text-[10px] text-red-500 mt-1">✗ JSON 格式錯誤</p>; }
+            })()}
           </div>
         </div>
 

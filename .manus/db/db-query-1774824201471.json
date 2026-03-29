@@ -1,0 +1,25 @@
+{
+  "query": "SHOW TABLES LIKE 'dse_scores'; SHOW TABLES LIKE 'jupas_choices'; SHOW TABLES LIKE 'user_favorites';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 39v32gWrepXHQS1.cd7c8f8f6cb8 --database S5boJc9BZRJrUGUv3iJavX --execute SHOW TABLES LIKE 'dse_scores'; SHOW TABLES LIKE 'jupas_choices'; SHOW TABLES LIKE 'user_favorites';",
+  "rows": [
+    {
+      "Tables_in_S5boJc9BZRJrUGUv3iJavX (dse_scores)": "dse_scores"
+    },
+    {
+      "Tables_in_S5boJc9BZRJrUGUv3iJavX (dse_scores)": "Tables_in_S5boJc9BZRJrUGUv3iJavX (jupas_choices)"
+    },
+    {
+      "Tables_in_S5boJc9BZRJrUGUv3iJavX (dse_scores)": "jupas_choices"
+    },
+    {
+      "Tables_in_S5boJc9BZRJrUGUv3iJavX (dse_scores)": "Tables_in_S5boJc9BZRJrUGUv3iJavX (user_favorites)"
+    },
+    {
+      "Tables_in_S5boJc9BZRJrUGUv3iJavX (dse_scores)": "user_favorites"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_S5boJc9BZRJrUGUv3iJavX (dse_scores)\ndse_scores\nTables_in_S5boJc9BZRJrUGUv3iJavX (jupas_choices)\njupas_choices\nTables_in_S5boJc9BZRJrUGUv3iJavX (user_favorites)\nuser_favorites\n",
+  "stderr": "",
+  "execution_time_ms": 2056
+}

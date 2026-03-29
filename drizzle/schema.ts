@@ -90,6 +90,7 @@ export const courses = mysqlTable("courses", {
   careerProspectsEn: text("careerProspectsEn"),
   websiteUrl: varchar("websiteUrl", { length: 500 }),
   jupasUrl: varchar("jupasUrl", { length: 500 }),
+  jupasOfficialUrl: varchar("jupasOfficialUrl", { length: 500 }),
   // Extra admission flags
   flexibleAdmission: boolean("flexibleAdmission").default(false),
   acceptMultipleSittings: mysqlEnum("acceptMultipleSittings", ["yes_no_penalty", "yes_with_penalty", "no"]),

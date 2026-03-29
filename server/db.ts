@@ -86,6 +86,11 @@ export interface CourseFilters {
   tuitionMin?: number;
   tuitionMax?: number;
   moduleType?: string;
+  flexibleAdmission?: boolean;
+  acceptMultipleSittings?: string[];
+  acceptAppliedLearning?: boolean;
+  acceptOtherLanguage?: boolean;
+  meetsMinRequirement?: boolean;
   sortBy?: string;
   sortDir?: "asc" | "desc";
   page?: number;
@@ -145,6 +150,10 @@ export async function getCourses(filters: CourseFilters = {}) {
   if (groupAOnly !== undefined) conditions.push(eq(courses.groupAOnly, groupAOnly));
   if (tuitionMin !== undefined) conditions.push(gte(courses.tuitionFee, tuitionMin));
   if (tuitionMax !== undefined) conditions.push(lte(courses.tuitionFee, tuitionMax));
+  if (filters.flexibleAdmission !== undefined) conditions.push(eq(courses.flexibleAdmission, filters.flexibleAdmission));
+  if (filters.acceptMultipleSittings?.length) conditions.push(inArray(courses.acceptMultipleSittings, filters.acceptMultipleSittings as ("yes_no_penalty" | "yes_with_penalty" | "no")[]));
+  if (filters.acceptAppliedLearning !== undefined) conditions.push(eq(courses.acceptAppliedLearning, filters.acceptAppliedLearning));
+  if (filters.acceptOtherLanguage !== undefined) conditions.push(eq(courses.acceptOtherLanguage, filters.acceptOtherLanguage));
 
   const where = and(...conditions);
 
@@ -323,4 +332,11 @@ export async function getDseScores(userId: number) {
   if (!db) return null;
   const result = await db.select().from(dseScores).where(eq(dseScores.userId, userId)).limit(1);
   return result[0]?.scores ?? null;
+}
+
+export async function getCoursesByIds(ids: number[]) {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(courses).where(inArray(courses.id, ids));
 }

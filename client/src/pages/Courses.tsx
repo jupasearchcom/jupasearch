@@ -45,6 +45,101 @@ import { cn } from "@/lib/utils";
 import type { Course } from "../../../drizzle/schema";
 import { getLoginUrl } from "@/const";
 import { getLocalFavoriteIds, setLocalFavoriteIds } from "./Favorites";
+import type { DSEScoreData } from "./DSEScores";
+
+// ─── DSE Score Helpers ────────────────────────────────────────────────────────
+const DSE_COOKIE_KEY = "jupasearch_dse_scores";
+const DEFAULT_DSE: DSEScoreData = {
+  chinese: "—", english: "—", math: "—", mathExtended: "—", civics: "達標",
+  elective1Subject: "", elective1Grade: "—",
+  elective2Subject: "", elective2Grade: "—",
+  elective3Subject: "", elective3Grade: "—",
+  appliedLearningSubject: "", appliedLearningGrade: "—",
+  otherLanguage: "", otherLanguageGrade: "—",
+};
+
+function loadDseFromCookie(): DSEScoreData | null {
+  try {
+    const raw = document.cookie.split("; ").find((r) => r.startsWith(DSE_COOKIE_KEY + "="));
+    if (!raw) return null;
+    const val = decodeURIComponent(raw.split("=")[1] ?? "");
+    const parsed = JSON.parse(val);
+    // Check if any score is actually entered
+    const hasScore = ["chinese","english","math"].some(k => parsed[k] && parsed[k] !== "—");
+    return hasScore ? { ...DEFAULT_DSE, ...parsed } : null;
+  } catch { return null; }
+}
+
+function dseGradeToScore(grade: string): number {
+  const map: Record<string, number> = {
+    "5**": 7, "5*": 6, "5": 5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0, "—": 0,
+  };
+  return map[grade] ?? 0;
+}
+
+function computeMyScore(course: Course, dse: DSEScoreData): number | null {
+  const formula = (course as any).scoreFormula;
+  if (!formula) return null;
+
+  // Build score map
+  const scoreMap: Record<string, number> = {};
+  scoreMap["chinese"] = dseGradeToScore(dse.chinese);
+  scoreMap["english"] = dseGradeToScore(dse.english);
+  scoreMap["math"] = dseGradeToScore(dse.math);
+  // mathExtended stores the subject key ("m1" or "m2"), not the grade
+  // The grade is stored in elective slots if user selected M1/M2 as elective
+  // For simplicity, we skip M1/M2 here as they are typically counted as electives
+  // Electives
+  [[dse.elective1Subject, dse.elective1Grade],[dse.elective2Subject, dse.elective2Grade],[dse.elective3Subject, dse.elective3Grade]]
+    .forEach(([subj, grade]) => { if (subj) scoreMap[subj] = dseGradeToScore(grade); });
+  // Applied Learning
+  if (dse.appliedLearningSubject) {
+    const alMap: Record<string, number> = { "達標並表現優異（I）": 3, "達標並表現優異（II）": 4, "達標": 2, "未達標": 0 };
+    scoreMap[dse.appliedLearningSubject] = alMap[dse.appliedLearningGrade] ?? 0;
+  }
+  // Other language
+  if (dse.otherLanguage) {
+    const olMap: Record<string, number> = { C2: 5, C1: 4, B2: 3, B1: 2, A2: 1, N1: 5, N2: 4, N3: 3, "第 6 級": 5, "第 5 級": 4, "第 4 級": 3, "第 3 級": 2, "A++": 5, "A+": 5, "A": 4, "B++": 4, "B+": 3, "B": 3, "C": 2, "D": 1, "E": 1 };
+    scoreMap[dse.otherLanguage] = olMap[dse.otherLanguageGrade] ?? 0;
+  }
+
+  // Apply weightings
+  const weightedMap: Record<string, number> = { ...scoreMap };
+  for (const w of (formula.weighted ?? [])) {
+    if (weightedMap[w.subject] !== undefined) weightedMap[w.subject] = weightedMap[w.subject] * w.multiplier;
+  }
+
+  const excluded = new Set(formula.excluded ?? []);
+  const available = Object.entries(weightedMap).filter(([k]) => !excluded.has(k)).map(([k, v]) => ({ subject: k, score: v }));
+  const required = new Set(formula.required ?? []);
+  const requiredEntries = available.filter(e => required.has(e.subject));
+  const optionalEntries = available.filter(e => !required.has(e.subject));
+  optionalEntries.sort((a, b) => b.score - a.score);
+
+  const method = formula.method ?? "best5";
+  let total = 0;
+  if (method === "best5" || method === "best6" || method === "best4") {
+    const n = method === "best4" ? 4 : method === "best6" ? 6 : 5;
+    const pool = [...requiredEntries, ...optionalEntries];
+    pool.sort((a, b) => b.score - a.score);
+    total = pool.slice(0, n).reduce((s, e) => s + e.score, 0);
+  } else if (method === "2c3x") {
+    const coreSubjects = new Set(formula.coreSubjects ?? ["chinese", "english", "math"]);
+    const coreEntries = available.filter(e => coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 2);
+    const electiveEntries = available.filter(e => !coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 3);
+    total = [...coreEntries, ...electiveEntries].reduce((s, e) => s + e.score, 0);
+  }
+  return Math.round(total * 100) / 100;
+}
+
+function getScoreColor(score: number, q1: number | null | undefined, median: number | null | undefined): "red" | "yellow" | "green" | "gray" {
+  if (!q1 && !median) return "gray";
+  const q1Val = q1 ? Number(q1) : 0;
+  const medianVal = median ? Number(median) : 0;
+  if (score < q1Val) return "red";
+  if (score < medianVal) return "yellow";
+  return "green";
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Institution key → { zhTw, zhCn, en }
@@ -89,7 +184,9 @@ const DEGREE_TYPES = Object.keys(DEGREE_TYPES_MAP);
 
 const SCORING_METHODS = ["best5", "best6", "best4", "2c3x"];
 const SCORE_GAPS = ["above_median", "above_q1", "below_q1", "between_median_q1"];
-const FUNDING_TYPES = ["ugc", "nmtss", "sssdp", "self_financed"];
+// Removed self_financed per user request
+const FUNDING_TYPES = ["ugc", "nmtss", "sssdp"];
+const RETAKE_POLICIES = ["yes_no_penalty", "yes_with_penalty", "no"];
 // Updated interview options per user request #29
 const INTERVIEW_OPTIONS = [
   "all_applicants",
@@ -122,15 +219,21 @@ function CourseCard({
   isFavorite,
   onToggleFavorite,
   onAddToChoices,
+  dseScores,
 }: {
   course: Course;
   isFavorite: boolean;
   onToggleFavorite: (course: Course) => void;
   onAddToChoices: (course: Course) => void;
+  dseScores: DSEScoreData | null;
 }) {
   const { t, language } = useLanguage();
   const { addToCompare, removeFromCompare, isInCompare } = useCompare();
   const inCompare = isInCompare(course.id);
+
+  // My Score calculation
+  const myScore = dseScores ? computeMyScore(course, dseScores) : null;
+  const scoreColor = myScore !== null ? getScoreColor(myScore, course.lastYearQ1 ? Number(course.lastYearQ1) : null, course.lastYearMedian ? Number(course.lastYearMedian) : null) : null;
 
   const name = language === "zh-CN" ? (course.nameZhCn || course.nameZhTw) :
     language === "en" ? (course.nameEn || course.nameZhTw) : course.nameZhTw;
@@ -193,11 +296,42 @@ function CourseCard({
         />
       </div>
       {/* Second row of stats */}
-      <div className="grid grid-cols-3 gap-2 mb-3">
+      <div className="grid grid-cols-3 gap-2 mb-2">
         <StatCell label={t("courses.col.totalApplicants")} value={course.lastYearTotalApplicants?.toString() ?? "—"} />
         <StatCell label={t("courses.col.groupAApplicants")} value={course.lastYearGroupAApplicants?.toString() ?? "—"} />
         <StatCell label={t("courses.col.duration")} value={course.duration ? `${course.duration}${language === "en" ? "yr" : "年"}` : "—"} />
       </div>
+
+      {/* My Score row */}
+      {dseScores && (
+        <div className={cn(
+          "flex items-center justify-between px-2 py-1 rounded-md mb-2 text-xs",
+          myScore === null ? "bg-muted/50 text-muted-foreground" :
+          scoreColor === "red" ? "bg-red-500/15 text-red-600 dark:text-red-400" :
+          scoreColor === "yellow" ? "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400" :
+          scoreColor === "green" ? "bg-green-500/15 text-green-600 dark:text-green-400" :
+          "bg-muted/50 text-muted-foreground"
+        )}>
+          <span className="font-medium">
+            {language === "en" ? "My Score" : language === "zh-CN" ? "我的分数" : "我的分數"}
+          </span>
+          <span className="font-bold">
+            {myScore === null
+              ? (language === "en" ? "No formula" : "未設定公式")
+              : myScore.toFixed(2)}
+          </span>
+        </div>
+      )}
+      {!dseScores && (course as any).scoreFormula && (
+        <div className="flex items-center justify-between px-2 py-1 rounded-md mb-2 text-xs bg-muted/30 text-muted-foreground">
+          <span>{language === "en" ? "My Score" : language === "zh-CN" ? "我的分数" : "我的分數"}</span>
+          <span>
+            <Link href="/dse-scores" className="underline hover:text-foreground">
+              {language === "en" ? "Enter DSE scores" : language === "zh-CN" ? "输入DSE成绩" : "輸入DSE成績"}
+            </Link>
+          </span>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex items-center gap-1.5 pt-2 border-t border-border">
@@ -320,6 +454,8 @@ export default function Courses() {
   const [fundingTypes, setFundingTypes] = useState<string[]>([]);
   const [interviewArrangements, setInterviewArrangements] = useState<string[]>([]);
   const [groupAOnly, setGroupAOnly] = useState<boolean | undefined>(undefined);
+  const [flexibleAdmission, setFlexibleAdmission] = useState<boolean | undefined>(undefined);
+  const [retakePolicies, setRetakePolicies] = useState<string[]>([]);
   const [tuitionMin, setTuitionMin] = useState<string>("");
   const [tuitionMax, setTuitionMax] = useState<string>("");
   const [debouncedTuitionMin, setDebouncedTuitionMin] = useState<string>("");
@@ -327,6 +463,9 @@ export default function Courses() {
   const [sortBy, setSortBy] = useState("id");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 24;
+
+  // DSE scores from cookie (for "My Score" calculation)
+  const [dseScores] = useState<DSEScoreData | null>(() => loadDseFromCookie());
 
   // Debounce search
   useEffect(() => {
@@ -368,13 +507,15 @@ export default function Courses() {
     fundingTypes: fundingTypes.length ? fundingTypes : undefined,
     interviewArrangements: interviewArrangements.length ? interviewArrangements : undefined,
     groupAOnly,
+    flexibleAdmission,
+    acceptMultipleSittings: retakePolicies.length ? retakePolicies : undefined,
     tuitionMin: parsedTuitionMin,
     tuitionMax: parsedTuitionMax,
     moduleType: "jupas" as const,
     sortBy,
     page,
     pageSize: PAGE_SIZE,
-  }), [debouncedSearch, degreeTypes, institutions, durations, qualifications, scoringMethods, scoreGaps, fundingTypes, interviewArrangements, groupAOnly, parsedTuitionMin, parsedTuitionMax, sortBy, page]); // eslint-disable-line react-hooks/exhaustive-deps
+  }), [debouncedSearch, degreeTypes, institutions, durations, qualifications, scoringMethods, scoreGaps, fundingTypes, interviewArrangements, groupAOnly, flexibleAdmission, retakePolicies, parsedTuitionMin, parsedTuitionMax, sortBy, page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data, isLoading } = trpc.courses.list.useQuery(queryInput);
   const courses = data?.courses ?? [];
@@ -443,7 +584,7 @@ export default function Courses() {
     setDegreeTypes([]); setInstitutions([]); setDurations([]);
     setQualifications([]); setScoringMethods([]); setScoreGaps([]);
     setFundingTypes([]); setInterviewArrangements([]);
-    setGroupAOnly(undefined);
+    setGroupAOnly(undefined); setFlexibleAdmission(undefined); setRetakePolicies([]);
     setTuitionMin(""); setTuitionMax("");
     setSortBy("id"); setPage(1);
   };
@@ -451,7 +592,8 @@ export default function Courses() {
   const hasActiveFilters = degreeTypes.length > 0 || institutions.length > 0 || durations.length > 0 ||
     qualifications.length > 0 || scoringMethods.length > 0 || scoreGaps.length > 0 ||
     fundingTypes.length > 0 || interviewArrangements.length > 0 ||
-    groupAOnly !== undefined || tuitionMin !== "" || tuitionMax !== "";
+    groupAOnly !== undefined || flexibleAdmission !== undefined || retakePolicies.length > 0 ||
+    tuitionMin !== "" || tuitionMax !== "";
 
   // Institution display name based on language
   const getInstitutionLabel = (key: string) => {
@@ -546,21 +688,41 @@ export default function Courses() {
       </FilterSection>
       <Separator />
       <FilterSection title={t("courses.filter.groupA")}>
-        <div className="space-y-1.5">
-          {[
-            { val: undefined, label: t("common.all") },
-            { val: true, label: t("common.yes") },
-            { val: false, label: t("common.no") },
-          ].map(({ val, label }) => (
-            <div key={String(val)} className="flex items-center gap-2">
-              <Checkbox
-                checked={groupAOnly === val}
-                onCheckedChange={() => { setGroupAOnly(val); setPage(1); }}
-                className="w-3.5 h-3.5"
-              />
-              <Label className="text-xs cursor-pointer">{label}</Label>
-            </div>
-          ))}
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="chk-groupA"
+            checked={groupAOnly === true}
+            onCheckedChange={(checked) => { setGroupAOnly(checked ? true : undefined); setPage(1); }}
+            className="w-3.5 h-3.5"
+          />
+          <Label htmlFor="chk-groupA" className="text-xs cursor-pointer">
+            {language === "en" ? "Band A Only" : language === "zh-CN" ? "仅限甲组" : "只限甲組"}
+          </Label>
+        </div>
+      </FilterSection>
+      <Separator />
+      <FilterSection title={language === "en" ? "Retake Policy" : language === "zh-CN" ? "重考政策" : "重考政策"}>
+        <CheckboxGroup
+          options={RETAKE_POLICIES}
+          selected={retakePolicies}
+          onChange={(v) => { setRetakePolicies(v); setPage(1); }}
+          labelFn={(v) => v === "yes_no_penalty" ? (language === "en" ? "Yes (no penalty)" : language === "zh-CN" ? "接受（不扣分）" : "接受（不扣分）") :
+            v === "yes_with_penalty" ? (language === "en" ? "Yes (with penalty)" : language === "zh-CN" ? "接受（扣分）" : "接受（扣分）") :
+            (language === "en" ? "No" : "不接受")}
+        />
+      </FilterSection>
+      <Separator />
+      <FilterSection title={language === "en" ? "Flexible Admission" : language === "zh-CN" ? "弹性收生" : "彈性收生"}>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="chk-flexible"
+            checked={flexibleAdmission === true}
+            onCheckedChange={(checked) => { setFlexibleAdmission(checked ? true : undefined); setPage(1); }}
+            className="w-3.5 h-3.5"
+          />
+          <Label htmlFor="chk-flexible" className="text-xs cursor-pointer">
+            {language === "en" ? "Flexible Admission Only" : language === "zh-CN" ? "只顯示彈性收生" : "只顯示彈性收生"}
+          </Label>
         </div>
       </FilterSection>
       <Separator />
@@ -571,7 +733,7 @@ export default function Courses() {
             type="number"
             placeholder={language === "en" ? "Min" : "最低"}
             value={tuitionMin}
-            onChange={(e) => { setTuitionMin(e.target.value); setPage(1); }}
+            onChange={(e) => { setTuitionMin(e.target.value); }}
             className="h-7 text-xs"
             min={0}
             max={200000}
@@ -581,7 +743,7 @@ export default function Courses() {
             type="number"
             placeholder={language === "en" ? "Max" : "最高"}
             value={tuitionMax}
-            onChange={(e) => { setTuitionMax(e.target.value); setPage(1); }}
+            onChange={(e) => { setTuitionMax(e.target.value); }}
             className="h-7 text-xs"
             min={0}
             max={200000}
@@ -709,6 +871,7 @@ export default function Courses() {
                     isFavorite={favoriteIds.includes(course.id)}
                     onToggleFavorite={handleToggleFavorite}
                     onAddToChoices={handleAddToChoices}
+                    dseScores={dseScores}
                   />
                 ))}
               </div>
