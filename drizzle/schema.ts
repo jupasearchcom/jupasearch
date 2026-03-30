@@ -103,6 +103,7 @@ export const courses = mysqlTable("courses", {
     excluded: string[]; // subjects that CANNOT be included
     weighted: { subject: string; multiplier: number }[];
     coreSubjects: string[]; // for 2c3x: the core subjects
+    minSubjectRequirements?: { subject: string; minGrade: string }[]; // specific subject minimum grade requirements
   }>(),
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -152,3 +153,12 @@ export const dseScores = mysqlTable("dse_scores", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 export type DseScores = typeof dseScores.$inferSelect;
+
+// ─── System Settings ────────────────────────────────────────────────────────────────────────────────
+export const systemSettings = mysqlTable("system_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  settingKey: varchar("setting_key", { length: 100 }).notNull().unique(),
+  settingValue: json("setting_value").$type<unknown>().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type SystemSetting = typeof systemSettings.$inferSelect;

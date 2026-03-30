@@ -8,6 +8,7 @@ import {
   dseScores,
   jupasChoices,
   savedReports,
+  systemSettings,
   userFavorites,
   users,
 } from "../drizzle/schema";
@@ -339,4 +340,21 @@ export async function getCoursesByIds(ids: number[]) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(courses).where(inArray(courses.id, ids));
+}
+
+// ─── System Settings helpers ────────────────────────────────────────────────────────────────────────────────
+export async function getSystemSetting(key: string): Promise<unknown | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(systemSettings).where(eq(systemSettings.settingKey, key)).limit(1);
+  return result[0]?.settingValue ?? null;
+}
+
+export async function setSystemSetting(key: string, value: unknown): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .insert(systemSettings)
+    .values({ settingKey: key, settingValue: value })
+    .onDuplicateKeyUpdate({ set: { settingValue: value, updatedAt: new Date() } });
 }

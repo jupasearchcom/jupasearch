@@ -322,6 +322,30 @@ export default function Choices() {
             const course = courseDetails[choice.courseId];
             const name = course ? getCourseName(course) : `Course #${choice.courseId}`;
             const isDraggingOver = dragOverIdx === index;
+            // Per-rank background colors (1-indexed: index+1)
+            const CHOICE_COLORS = [
+              "rgb(255,204,203)", // 1
+              "rgb(255,188,188)", // 2
+              "rgb(255,204,203)", // 3
+              "rgb(234,188,94)",  // 4
+              "rgb(255,205,102)", // 5
+              "rgb(234,188,94)",  // 6
+              "rgb(254,255,153)", // 7
+              "rgb(235,235,141)", // 8
+              "rgb(254,255,153)", // 9
+              "rgb(235,235,141)", // 10
+              "rgb(153,255,205)", // 11
+              "rgb(142,235,188)", // 12
+              "rgb(153,255,205)", // 13
+              "rgb(142,235,188)", // 14
+              "rgb(153,255,205)", // 15
+              "rgb(142,188,188)", // 16
+              "rgb(154,204,205)", // 17
+              "rgb(142,188,188)", // 18
+              "rgb(154,204,205)", // 19
+              "rgb(142,188,188)", // 20
+            ];
+            const choiceBg = CHOICE_COLORS[index] ?? "transparent";
 
             return (
               <div
@@ -332,11 +356,12 @@ export default function Choices() {
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
+                style={{ backgroundColor: isDraggingOver ? undefined : choiceBg }}
                 className={cn(
-                  "flex items-center gap-3 bg-card border rounded-xl p-3 transition-all duration-150 group cursor-grab active:cursor-grabbing",
+                  "flex items-center gap-3 border rounded-xl p-3 transition-all duration-150 group cursor-grab active:cursor-grabbing",
                   isDraggingOver
                     ? "border-foreground bg-secondary/30 scale-[1.01] shadow-md"
-                    : "border-border hover:border-foreground/20"
+                    : "border-transparent hover:border-black/10"
                 )}
               >
                 <GripVertical className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground shrink-0 transition-colors" />

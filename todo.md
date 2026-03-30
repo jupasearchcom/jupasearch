@@ -143,3 +143,15 @@
 - [ ] My Score Admin：改為結構化表單（而非 JSON textarea）
 - [ ] 加入「按我的分數排序」選項（(我的分數-中位數)÷中位數）
 - [ ] 驗證 DSE 成績頁面 bug 修復（需端對端測試）
+
+## Bug Fix & Feature Batch 3 (2026-03-30)
+- [x] Bug 1: 未登入時無法把課程加至收藏（在 addFav/removeFav mutation 加入 onError 擄截 UNAUTHORIZED 錯誤）
+- [x] Bug 2: 志願顏色背景未按指定 RGB 設定（按用戶指定的 20 個志願位置 RGB 顏色已設定）
+- [x] Bug 3: 學費輸入仍跳回頂部（改為 type=text + inputMode=numeric 避免 IME 問題）
+- [x] Bug 4: 面試安排 5 個選項顯示為翻譯 key（已在 LanguageContext.tsx 加入正確翻譯）
+- [x] Bug 5: 篩選「組別A錄取」標籤改為「僅限組別A錄取」，選項改為「是」
+- [x] Bug 6: DSE 成績「選修科目」上限加至 4 個
+- [x] Bug 7: DSE 成績「選修科目」更新為 26 個指定科目列表
+- [x] Bug 8: DSE 成績「應用學習科目」改為後台設定（Admin 頁面新增應用學習科目管理對話框）
+- [x] Bug 9: DSE 成績「其他語言科目」列表無法選擇（修復 value="none" 處理）
+- [x] Feature 10: 篩選「僅列出符合最低要求的課程」（332A33 等格式 + scoreFormula.minSubjectRequirements）

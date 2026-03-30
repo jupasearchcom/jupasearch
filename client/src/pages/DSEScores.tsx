@@ -29,42 +29,90 @@ const KOREAN_GRADES = ["第 6 級", "第 5 級", "第 4 級", "第 3 級", "—"
 const URDU_GRADES = ["A++", "A+", "A", "B++", "B+", "B", "C", "D", "E", "—"] as const;
 
 const ELECTIVE_SUBJECTS_ZH_TW = [
-  "中國歷史", "經濟", "地理", "歷史", "生活與社會",
-  "倫理與宗教", "旅遊與款待", "視覺藝術",
-  "生物", "化學", "物理", "組合科學（生物、化學）",
-  "組合科學（生物、物理）", "組合科學（化學、物理）",
-  "綜合科學", "科學（甲部）", "科學（乙部）",
-  "企業、會計與財務概論", "資訊及通訊科技",
-  "設計與應用科技", "健康管理與社會關懷",
-  "音樂", "體育",
-  "中國文學", "英國文學",
-  "日本語文", "法語文",
+  "物理",
+  "化學",
+  "生物",
+  "組合科學（物理、化學）",
+  "組合科學（化學、生物）",
+  "組合科學（物理、生物）",
+  "綜合科學",
+  "資訊及通訊科技",
+  "設計與應用科技",
+  "健康管理與社會關懷",
+  "科技與生活（服裝、成衣與紡織）",
+  "科技與生活（食物科學與科技）",
+  "企業、會計與財務概論（會計選修部分）",
+  "企業、會計與財務概論（商業管理選修部分）",
+  "企業、會計與財務概論",
+  "經濟",
+  "地理",
+  "歷史",
+  "中國歷史",
+  "倫理與宗教",
+  "中國文學",
+  "英國文學",
+  "旅遊與款待",
+  "視覺藝術",
+  "音樂",
+  "體育",
 ];
 
 const ELECTIVE_SUBJECTS_ZH_CN = [
-  "中国历史", "经济", "地理", "历史", "生活与社会",
-  "伦理与宗教", "旅游与款待", "视觉艺术",
-  "生物", "化学", "物理", "组合科学（生物、化学）",
-  "组合科学（生物、物理）", "组合科学（化学、物理）",
-  "综合科学", "科学（甲部）", "科学（乙部）",
-  "企业、会计与财务概论", "资讯及通讯科技",
-  "设计与应用科技", "健康管理与社会关顾",
-  "音乐", "体育",
-  "中国文学", "英国文学",
-  "日本语文", "法语文",
+  "物理",
+  "化学",
+  "生物",
+  "组合科学（物理、化学）",
+  "组合科学（化学、生物）",
+  "组合科学（物理、生物）",
+  "综合科学",
+  "资讯及通讯科技",
+  "设计与应用科技",
+  "健康管理与社会关顾",
+  "科技与生活（服装、成衣与纵织）",
+  "科技与生活（食物科学与科技）",
+  "企业、会计与财务概论（会计选修部分）",
+  "企业、会计与财务概论（商业管理选修部分）",
+  "企业、会计与财务概论",
+  "经济",
+  "地理",
+  "历史",
+  "中国历史",
+  "伦理与宗教",
+  "中国文学",
+  "英国文学",
+  "旅游与款待",
+  "视觉艺术",
+  "音乐",
+  "体育",
 ];
 
 const ELECTIVE_SUBJECTS_EN = [
-  "Chinese History", "Economics", "Geography", "History", "Life & Society",
-  "Ethics & Religious Studies", "Tourism & Hospitality", "Visual Arts",
-  "Biology", "Chemistry", "Physics", "Combined Science (Bio, Chem)",
-  "Combined Science (Bio, Phys)", "Combined Science (Chem, Phys)",
-  "Integrated Science", "Science (Part A)", "Science (Part B)",
-  "BAFS", "ICT",
-  "Design & Applied Technology", "Health Management & Social Care",
-  "Music", "Physical Education",
-  "Chinese Literature", "English Literature",
-  "Japanese Language", "French Language",
+  "Physics",
+  "Chemistry",
+  "Biology",
+  "Combined Science (Physics, Chemistry)",
+  "Combined Science (Chemistry, Biology)",
+  "Combined Science (Physics, Biology)",
+  "Integrated Science",
+  "Information and Communication Technology",
+  "Design and Applied Technology",
+  "Health Management and Social Care",
+  "Technology and Living (Clothing, Textiles and Needlework)",
+  "Technology and Living (Food Science and Technology)",
+  "BAFS (Accounting Elective)",
+  "BAFS (Business Management Elective)",
+  "Business, Accounting and Financial Studies",
+  "Economics",
+  "Geography",
+  "History",
+  "Chinese History",
+  "Ethics and Religious Studies",
+  "Chinese Literature",
+  "English Literature",
+  "Tourism and Hospitality Studies",
+  "Visual Arts",
+  "Music",
+  "Physical Education",
 ];
 
 const COOKIE_KEY = "jupasearch_dse_scores";
@@ -81,6 +129,8 @@ export interface DSEScoreData {
   elective2Grade: string;
   elective3Subject: string;
   elective3Grade: string;
+  elective4Subject: string;
+  elective4Grade: string;
   appliedLearningSubject: string;
   appliedLearningGrade: string;
   otherLanguage: string;
@@ -99,6 +149,8 @@ const DEFAULT_SCORES: DSEScoreData = {
   elective2Grade: "—",
   elective3Subject: "",
   elective3Grade: "—",
+  elective4Subject: "",
+  elective4Grade: "—",
   appliedLearningSubject: "",
   appliedLearningGrade: "—",
   otherLanguage: "",
@@ -199,6 +251,9 @@ export default function DSEScores() {
   const allScores = [...coreScores, ...electiveScores].sort((a, b) => b - a);
   const best5 = allScores.slice(0, 5).reduce((a, b) => a + b, 0);
   const best6 = allScores.slice(0, 6).reduce((a, b) => a + b, 0);
+
+  // Fetch applied learning subjects from backend (set by admin)
+  const { data: appliedLearningSubjects = [] } = trpc.settings.getAppliedLearningSubjects.useQuery();
 
   const electives = language === "zh-CN" ? ELECTIVE_SUBJECTS_ZH_CN : language === "en" ? ELECTIVE_SUBJECTS_EN : ELECTIVE_SUBJECTS_ZH_TW;
 
@@ -376,7 +431,7 @@ export default function DSEScores() {
         <div className="border border-border rounded-xl p-5">
           <h2 className="font-semibold mb-4 text-sm uppercase tracking-wide text-muted-foreground">{t.electives[l]}</h2>
           <div className="space-y-4">
-            {([1, 2, 3] as const).map((n) => {
+            {([1, 2, 3, 4] as const).map((n) => {
               const subjectKey = `elective${n}Subject` as keyof DSEScoreData;
               const gradeKey = `elective${n}Grade` as keyof DSEScoreData;
               return (
@@ -425,12 +480,23 @@ export default function DSEScores() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Input
-              placeholder={t.inputSubjectName[l]}
-              value={scores.appliedLearningSubject}
-              onChange={(e) => handleChange("appliedLearningSubject", e.target.value)}
-              className="flex-1"
-            />
+            <Select
+              value={scores.appliedLearningSubject || "none"}
+              onValueChange={(v) => {
+                handleChange("appliedLearningSubject", v === "none" ? "" : v);
+                if (v === "none") handleChange("appliedLearningGrade", "—");
+              }}
+            >
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder={t.selectSubject[l]} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">—</SelectItem>
+                {appliedLearningSubjects.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select
               value={scores.appliedLearningGrade}
               onValueChange={(v) => handleChange("appliedLearningGrade", v)}
@@ -453,9 +519,10 @@ export default function DSEScores() {
           <h2 className="font-semibold mb-4 text-sm uppercase tracking-wide text-muted-foreground">{t.otherLanguage[l]}</h2>
           <div className="flex items-center gap-3">
             <Select
-              value={scores.otherLanguage}
+              value={scores.otherLanguage || "none"}
               onValueChange={(v) => {
-                handleChange("otherLanguage", v);
+                const val = v === "none" ? "" : v;
+                handleChange("otherLanguage", val);
                 handleChange("otherLanguageGrade", "—");
               }}
             >
@@ -470,7 +537,7 @@ export default function DSEScores() {
               </SelectContent>
             </Select>
             <Select
-              value={scores.otherLanguageGrade}
+              value={scores.otherLanguageGrade || "—"}
               onValueChange={(v) => handleChange("otherLanguageGrade", v)}
               disabled={!scores.otherLanguage}
             >

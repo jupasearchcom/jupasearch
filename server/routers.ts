@@ -23,6 +23,8 @@ import {
   updateCourse,
   saveDseScores,
   getDseScores,
+  getSystemSetting,
+  setSystemSetting,
 } from "./db";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
@@ -355,6 +357,8 @@ export const appRouter = router({
         elective2Grade: z.string().optional(),
         elective3Subject: z.string().optional(),
         elective3Grade: z.string().optional(),
+        elective4Subject: z.string().optional(),
+        elective4Grade: z.string().optional(),
         appliedLearningSubject: z.string().optional(),
         appliedLearningGrade: z.string().optional(),
         otherLanguage: z.string().optional(),
@@ -370,7 +374,24 @@ export const appRouter = router({
     }),
   }),
 
-  // ─── Reports ───────────────────────────────────────────────────────────────
+  // ─── System Settings ──────────────────────────────────────────────────────
+  settings: router({
+    // Get applied learning subjects list (public)
+    getAppliedLearningSubjects: publicProcedure.query(async () => {
+      const val = await getSystemSetting("applied_learning_subjects");
+      return Array.isArray(val) ? (val as string[]) : [];
+    }),
+
+    // Set applied learning subjects list (admin only)
+    setAppliedLearningSubjects: adminProcedure
+      .input(z.object({ subjects: z.array(z.string()) }))
+      .mutation(async ({ input }) => {
+        await setSystemSetting("applied_learning_subjects", input.subjects);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Reports ────────────────────────────────────────────────────────────────────────────────
   reports: router({
     list: protectedProcedure.query(async ({ ctx }) => {
       return getSavedReports(ctx.user.id);

@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO system_settings (setting_key, setting_value) VALUES (\n  'applied_learning_subjects',\n  JSON_ARRAY(\n    '商業、管理及法律',\n    '創意學習',\n    '工程及生產',\n    '媒體及傳意',\n    '服務業',\n    '科技',\n    '社會服務'\n  )\n) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 39v32gWrepXHQS1.cd7c8f8f6cb8 --database S5boJc9BZRJrUGUv3iJavX --execute INSERT INTO system_settings (setting_key, setting_value) VALUES (\n  'applied_learning_subjects',\n  JSON_ARRAY(\n    '商業、管理及法律',\n    '創意學習',\n    '工程及生產',\n    '媒體及傳意',\n    '服務業',\n    '科技',\n    '社會服務'\n  )\n) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1652
+}

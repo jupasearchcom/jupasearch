@@ -44,6 +44,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Course } from "../../../drizzle/schema";
 import { getLoginUrl } from "@/const";
+import { UNAUTHED_ERR_MSG } from "@shared/const";
 import { getLocalFavoriteIds, setLocalFavoriteIds } from "./Favorites";
 import type { DSEScoreData } from "./DSEScores";
 
@@ -54,6 +55,7 @@ const DEFAULT_DSE: DSEScoreData = {
   elective1Subject: "", elective1Grade: "—",
   elective2Subject: "", elective2Grade: "—",
   elective3Subject: "", elective3Grade: "—",
+  elective4Subject: "", elective4Grade: "—",
   appliedLearningSubject: "", appliedLearningGrade: "—",
   otherLanguage: "", otherLanguageGrade: "—",
 };
@@ -132,6 +134,60 @@ function computeMyScore(course: Course, dse: DSEScoreData): number | null {
   return Math.round(total * 100) / 100;
 }
 
+// DSE grade order for comparison
+const DSE_GRADE_ORDER = ["U", "1", "2", "3", "4", "5", "5*", "5**", "—"];
+const CHINESE_GRADE_ORDER = ["U", "1", "2", "3", "4", "5", "5*", "5**", "—"];
+
+function gradeAtLeast(userGrade: string, minGrade: string): boolean {
+  if (!userGrade || userGrade === "—") return false;
+  const order = DSE_GRADE_ORDER;
+  const userIdx = order.indexOf(userGrade);
+  const minIdx = order.indexOf(minGrade);
+  if (userIdx === -1 || minIdx === -1) return userGrade === minGrade;
+  return userIdx >= minIdx;
+}
+
+function checkMeetsMinRequirement(course: Course, dse: DSEScoreData | null): boolean {
+  if (!dse) return true; // if no DSE scores, don't filter
+  const req = course.minRequirement;
+  if (!req) return true; // no requirement set, assume meets
+
+  // Parse minRequirement string like "332A33" or "332A22" or "222A22"
+  // Format: Chinese(1) English(1) Math(1) Civics(A=達標) Elective1(1) Elective2(1)
+  // Grade mapping: 2=level2, 3=level3, A=達標
+  const reqMap: Record<string, string> = {
+    "2": "2", "3": "3", "4": "4", "5": "5", "A": "達標",
+  };
+
+  if (req.length >= 3) {
+    const chineseReq = reqMap[req[0]] ?? req[0];
+    const englishReq = reqMap[req[1]] ?? req[1];
+    const mathReq = reqMap[req[2]] ?? req[2];
+
+    if (!gradeAtLeast(dse.chinese, chineseReq)) return false;
+    if (!gradeAtLeast(dse.english, englishReq)) return false;
+    if (!gradeAtLeast(dse.math, mathReq)) return false;
+  }
+
+  // Check specific subject requirements from scoreFormula.minSubjectRequirements
+  const formula = (course as any).scoreFormula;
+  if (formula?.minSubjectRequirements) {
+    const userSubjects: Record<string, string> = {
+      chinese: dse.chinese, english: dse.english, math: dse.math,
+      [dse.elective1Subject]: dse.elective1Grade,
+      [dse.elective2Subject]: dse.elective2Grade,
+      [dse.elective3Subject]: dse.elective3Grade,
+      [dse.elective4Subject ?? ""]: dse.elective4Grade ?? "—",
+    };
+    for (const subReq of formula.minSubjectRequirements) {
+      const userGrade = userSubjects[subReq.subject];
+      if (!userGrade || !gradeAtLeast(userGrade, subReq.minGrade)) return false;
+    }
+  }
+
+  return true;
+}
+
 function getScoreColor(score: number, q1: number | null | undefined, median: number | null | undefined): "red" | "yellow" | "green" | "gray" {
   if (!q1 && !median) return "gray";
   const q1Val = q1 ? Number(q1) : 0;
@@ -189,11 +245,11 @@ const FUNDING_TYPES = ["ugc", "nmtss", "sssdp"];
 const RETAKE_POLICIES = ["yes_no_penalty", "yes_with_penalty", "no"];
 // Updated interview options per user request #29
 const INTERVIEW_OPTIONS = [
-  "all_applicants",
-  "selective_basis",
+  "yes_all",
+  "yes_selective",
   "may_require",
   "special_cases",
-  "no_interview",
+  "no",
 ];
 const DURATIONS = [2, 4, 5, 6];
 const QUALIFICATIONS = ["bachelor", "higher_diploma", "associate_degree"];
@@ -461,6 +517,7 @@ export default function Courses() {
   const [debouncedTuitionMin, setDebouncedTuitionMin] = useState<string>("");
   const [debouncedTuitionMax, setDebouncedTuitionMax] = useState<string>("");
   const [sortBy, setSortBy] = useState("id");
+  const [onlyMeetMinReq, setOnlyMeetMinReq] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 24;
 
@@ -518,9 +575,14 @@ export default function Courses() {
   }), [debouncedSearch, degreeTypes, institutions, durations, qualifications, scoringMethods, scoreGaps, fundingTypes, interviewArrangements, groupAOnly, flexibleAdmission, retakePolicies, parsedTuitionMin, parsedTuitionMax, sortBy, page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data, isLoading } = trpc.courses.list.useQuery(queryInput);
-  const courses = data?.courses ?? [];
-  const total = data?.total ?? 0;
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const rawCourses = data?.courses ?? [];
+  // Client-side filter: only show courses that meet minimum requirements
+  const courses = useMemo(() => {
+    if (!onlyMeetMinReq || !dseScores) return rawCourses;
+    return rawCourses.filter((c) => checkMeetsMinRequirement(c, dseScores));
+  }, [rawCourses, onlyMeetMinReq, dseScores]);
+  const total = onlyMeetMinReq ? courses.length : (data?.total ?? 0);
+  const totalPages = onlyMeetMinReq ? 1 : Math.ceil((data?.total ?? 0) / PAGE_SIZE);
 
   // Favorites — server or local
   const { data: serverFavoriteIds = [] } = trpc.favorites.ids.useQuery(undefined, { enabled: isAuthenticated });
@@ -528,8 +590,31 @@ export default function Courses() {
   const favoriteIds = isAuthenticated ? serverFavoriteIds : localFavIds;
 
   const utils = trpc.useUtils();
-  const addFav = trpc.favorites.add.useMutation({ onSuccess: () => utils.favorites.ids.invalidate() });
-  const removeFav = trpc.favorites.remove.useMutation({ onSuccess: () => utils.favorites.ids.invalidate() });
+  const addFav = trpc.favorites.add.useMutation({
+    onSuccess: () => utils.favorites.ids.invalidate(),
+    onError: (err) => {
+      // Intercept UNAUTHORIZED so global redirect in main.tsx is not triggered for guest users
+      if (err.message === UNAUTHED_ERR_MSG) {
+        toast.error(language === "en" ? "Please login to save favorites" : language === "zh-CN" ? "请登录以保存收藏" : "請登入以儲存收藏", {
+          action: { label: language === "en" ? "Login" : "登入", onClick: () => { window.location.href = getLoginUrl(); } },
+        });
+      } else {
+        toast.error(err.message);
+      }
+    },
+  });
+  const removeFav = trpc.favorites.remove.useMutation({
+    onSuccess: () => utils.favorites.ids.invalidate(),
+    onError: (err) => {
+      if (err.message === UNAUTHED_ERR_MSG) {
+        toast.error(language === "en" ? "Please login to save favorites" : language === "zh-CN" ? "请登录以保存收藏" : "請登入以儲存收藏", {
+          action: { label: language === "en" ? "Login" : "登入", onClick: () => { window.location.href = getLoginUrl(); } },
+        });
+      } else {
+        toast.error(err.message);
+      }
+    },
+  });
 
   const handleToggleFavorite = useCallback((course: Course) => {
     if (isAuthenticated) {
@@ -586,6 +671,7 @@ export default function Courses() {
     setFundingTypes([]); setInterviewArrangements([]);
     setGroupAOnly(undefined); setFlexibleAdmission(undefined); setRetakePolicies([]);
     setTuitionMin(""); setTuitionMax("");
+    setOnlyMeetMinReq(false);
     setSortBy("id"); setPage(1);
   };
 
@@ -593,7 +679,7 @@ export default function Courses() {
     qualifications.length > 0 || scoringMethods.length > 0 || scoreGaps.length > 0 ||
     fundingTypes.length > 0 || interviewArrangements.length > 0 ||
     groupAOnly !== undefined || flexibleAdmission !== undefined || retakePolicies.length > 0 ||
-    tuitionMin !== "" || tuitionMax !== "";
+    tuitionMin !== "" || tuitionMax !== "" || onlyMeetMinReq;
 
   // Institution display name based on language
   const getInstitutionLabel = (key: string) => {
@@ -696,7 +782,7 @@ export default function Courses() {
             className="w-3.5 h-3.5"
           />
           <Label htmlFor="chk-groupA" className="text-xs cursor-pointer">
-            {language === "en" ? "Band A Only" : language === "zh-CN" ? "仅限甲组" : "只限甲組"}
+            {t("courses.groupAOnly")}
           </Label>
         </div>
       </FilterSection>
@@ -726,27 +812,46 @@ export default function Courses() {
         </div>
       </FilterSection>
       <Separator />
+      <FilterSection title={language === "en" ? "Minimum Requirements" : language === "zh-CN" ? "最低要求" : "最低要求"}>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="chk-minreq"
+            checked={onlyMeetMinReq}
+            onCheckedChange={(checked) => { setOnlyMeetMinReq(!!checked); setPage(1); }}
+            className="w-3.5 h-3.5"
+          />
+          <Label htmlFor="chk-minreq" className="text-xs cursor-pointer leading-snug">
+            {language === "en" ? "Only show courses I meet min. requirements" : language === "zh-CN" ? "僅列出符合最低要求的课程" : "僅列出符合最低要求的課程"}
+          </Label>
+        </div>
+        {onlyMeetMinReq && !dseScores && (
+          <p className="text-[10px] text-amber-500 mt-1">
+            {language === "en" ? "Please enter DSE scores first" : language === "zh-CN" ? "请先输入文憑试成绩" : "請先輸入文憑試成績"}
+          </p>
+        )}
+      </FilterSection>
+      <Separator />
       {/* Tuition: free text input instead of slider */}
       <FilterSection title={`${t("courses.filter.tuition")} (${t("courses.filter.tuition.unit")})`}>
         <div className="flex items-center gap-2">
           <Input
-            type="number"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             placeholder={language === "en" ? "Min" : "最低"}
             value={tuitionMin}
-            onChange={(e) => { setTuitionMin(e.target.value); }}
+            onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ""); setTuitionMin(v); }}
             className="h-7 text-xs"
-            min={0}
-            max={200000}
           />
           <span className="text-xs text-muted-foreground">—</span>
           <Input
-            type="number"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             placeholder={language === "en" ? "Max" : "最高"}
             value={tuitionMax}
-            onChange={(e) => { setTuitionMax(e.target.value); }}
+            onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ""); setTuitionMax(v); }}
             className="h-7 text-xs"
-            min={0}
-            max={200000}
           />
         </div>
         <p className="text-[10px] text-muted-foreground mt-1">

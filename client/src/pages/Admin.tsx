@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
@@ -336,11 +336,11 @@ function CourseFormDialog({
             <Select value={form.interviewArrangement} onValueChange={(v) => set("interviewArrangement", v)}>
               <SelectTrigger><SelectValue placeholder="選擇面試安排" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all_applicants">所有申請者均需面試 (Yes for all)</SelectItem>
-                <SelectItem value="selective_basis">選擇性面試 (Yes selective)</SelectItem>
-                <SelectItem value="may_require">可能需要面試 (May require)</SelectItem>
-                <SelectItem value="special_cases">特殊情況才面試 (Special cases)</SelectItem>
-                <SelectItem value="no_interview">不設面試 (No)</SelectItem>
+                <SelectItem value="yes_all">Yes (for all applicants) 有（所有申請者）</SelectItem>
+                <SelectItem value="yes_selective">Yes (on a selective basis) 有（選擇性）</SelectItem>
+                <SelectItem value="may_require">May require interview and/or test 可能需要面試</SelectItem>
+                <SelectItem value="special_cases">For special cases only 僅特殊情況</SelectItem>
+                <SelectItem value="no">No 不設面試</SelectItem>
               </SelectContent>
             </Select>
           </FormField>
@@ -491,7 +491,89 @@ function BulkImportDialog({ open, onClose, onSuccess }: { open: boolean; onClose
   );
 }
 
-// ─── Main Admin Page ──────────────────────────────────────────────────────────
+// ─── Applied Learning Subjects Dialog ───────────────────────────────────────────────────────────────
+function AppliedLearningDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const utils = trpc.useUtils();
+  const { data: subjects = [], isLoading } = trpc.settings.getAppliedLearningSubjects.useQuery();
+  const [localSubjects, setLocalSubjects] = useState<string[]>([]);
+  const [newSubject, setNewSubject] = useState("");
+
+  useEffect(() => {
+    if (subjects.length > 0) setLocalSubjects(subjects);
+  }, [subjects]);
+
+  const setMutation = trpc.settings.setAppliedLearningSubjects.useMutation({
+    onSuccess: () => {
+      utils.settings.getAppliedLearningSubjects.invalidate();
+      toast.success("應用學習科目已更新");
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleAdd = () => {
+    const trimmed = newSubject.trim();
+    if (!trimmed || localSubjects.includes(trimmed)) return;
+    setLocalSubjects((prev) => [...prev, trimmed]);
+    setNewSubject("");
+  };
+
+  const handleRemove = (s: string) => {
+    setLocalSubjects((prev) => prev.filter((x) => x !== s));
+  };
+
+  const handleSave = () => {
+    setMutation.mutate({ subjects: localSubjects });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>應用學習科目管理</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <p className="text-xs text-muted-foreground">設定在「文憑試成績」頁面顯示的應用學習科目列表。</p>
+          {isLoading ? (
+            <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin" /></div>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {localSubjects.map((s) => (
+                <div key={s} className="flex items-center justify-between gap-2 px-3 py-2 border border-border rounded-lg">
+                  <span className="text-sm">{s}</span>
+                  <Button variant="ghost" size="icon" className="w-6 h-6 text-muted-foreground hover:text-destructive" onClick={() => handleRemove(s)}>
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Input
+              placeholder="新增應用學習科目名稱"
+              value={newSubject}
+              onChange={(e) => setNewSubject(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+              className="flex-1"
+            />
+            <Button variant="outline" size="sm" onClick={handleAdd} disabled={!newSubject.trim()}>
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button onClick={handleSave} disabled={setMutation.isPending}>
+            {setMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+            儲存
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Main Admin Page ───────────────────────────────────────────────────────────────
 export default function Admin() {
   const { t } = useLanguage();
   const { user, isAuthenticated } = useAuth();
@@ -503,6 +585,7 @@ export default function Admin() {
   const [editCourse, setEditCourse] = useState<Course | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [showAppliedLearningMgmt, setShowAppliedLearningMgmt] = useState(false);
   const PAGE_SIZE = 20;
 
   const { data, isLoading } = trpc.courses.list.useQuery({
@@ -550,6 +633,10 @@ export default function Admin() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowAppliedLearningMgmt(true)}>
+            <Settings className="w-4 h-4" />
+            應用學習科目設定
+          </Button>
           <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowImport(true)}>
             <Upload className="w-4 h-4" />
             {t("admin.bulkImport")}
@@ -672,6 +759,12 @@ export default function Admin() {
         open={showImport}
         onClose={() => setShowImport(false)}
         onSuccess={() => utils.courses.list.invalidate()}
+      />
+
+      {/* Applied Learning Subjects Management Dialog */}
+      <AppliedLearningDialog
+        open={showAppliedLearningMgmt}
+        onClose={() => setShowAppliedLearningMgmt(false)}
       />
 
       {/* Delete Confirm */}
