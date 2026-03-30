@@ -10,9 +10,12 @@ import "./index.css";
 
 const queryClient = new QueryClient();
 
-const redirectToLoginIfUnauthorized = (error: unknown) => {
+const redirectToLoginIfUnauthorized = (error: unknown, path?: string) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
+
+  // Skip redirect for favorites operations - they handle unauthenticated state locally
+  if (path && (path.includes("favorites.add") || path.includes("favorites.remove"))) return;
 
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
 
@@ -32,7 +35,10 @@ queryClient.getQueryCache().subscribe(event => {
 queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.mutation.state.error;
-    redirectToLoginIfUnauthorized(error);
+    // Pass mutation key as path string to allow selective bypass
+    const mutationKey = event.mutation.options.mutationKey;
+    const path = Array.isArray(mutationKey) ? mutationKey.flat().join(".") : String(mutationKey ?? "");
+    redirectToLoginIfUnauthorized(error, path);
     console.error("[API Mutation Error]", error);
   }
 });

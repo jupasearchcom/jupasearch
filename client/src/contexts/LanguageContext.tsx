@@ -278,7 +278,10 @@ const translations: Record<Language, Record<string, string>> = {
     "interview.special_cases": "僅特殊情況需要",
     "interview.no": "無面試",
     // Legacy keys (keep for backward compat)
-    "interview.required": "必須面試（所有申請人）",
+    "interview.all_applicants": "有（所有申請者）",
+    "interview.selective_basis": "有（選擇性）",
+    "interview.no_interview": "無面試",
+    "interview.required": "必須面試（所有申請者）",
     "interview.not_required": "無需面試",
     "interview.by_invitation": "獲邀面試",
     "interview.portfolio": "作品集面試",
@@ -504,6 +507,10 @@ const translations: Record<Language, Record<string, string>> = {
     "interview.may_require": "可能需要面试及/或测试",
     "interview.special_cases": "仅特殊情况需要",
     "interview.no": "无面试",
+    // Legacy keys (keep for backward compat)
+    "interview.all_applicants": "有（所有申请者）",
+    "interview.selective_basis": "有（选择性）",
+    "interview.no_interview": "无面试",
     "interview.required": "必须面试（所有申请人）",
     "interview.not_required": "无需面试",
     "interview.by_invitation": "获邀面试",
@@ -720,6 +727,10 @@ const translations: Record<Language, Record<string, string>> = {
     "interview.may_require": "May require interview and/or test",
     "interview.special_cases": "For special cases only",
     "interview.no": "No",
+    // Legacy keys (keep for backward compat)
+    "interview.all_applicants": "Yes (for all applicants)",
+    "interview.selective_basis": "Yes (on a selective basis)",
+    "interview.no_interview": "No",
     "interview.required": "Interview Required (All)",
     "interview.not_required": "No Interview",
     "interview.by_invitation": "By Invitation",

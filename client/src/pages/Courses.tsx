@@ -39,6 +39,7 @@ import {
   ChevronRight,
   X,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -287,6 +288,9 @@ function CourseCard({
   const { addToCompare, removeFromCompare, isInCompare } = useCompare();
   const inCompare = isInCompare(course.id);
 
+  // Check if meets minimum requirement (only when DSE scores are entered)
+  const meetsMinReq = dseScores ? checkMeetsMinRequirement(course, dseScores) : null;
+
   // My Score calculation
   const myScore = dseScores ? computeMyScore(course, dseScores) : null;
   const scoreColor = myScore !== null ? getScoreColor(myScore, course.lastYearQ1 ? Number(course.lastYearQ1) : null, course.lastYearMedian ? Number(course.lastYearMedian) : null) : null;
@@ -306,7 +310,28 @@ function CourseCard({
   const fundingLabel = course.fundingType ? t(`funding.${course.fundingType}`) : null;
 
   return (
-    <div className="group relative bg-card border border-border rounded-xl p-4 hover:border-foreground/20 hover:shadow-md transition-all duration-200">
+    <div className={cn(
+      "group relative bg-card border border-border rounded-xl p-4 hover:border-foreground/20 hover:shadow-md transition-all duration-200",
+      meetsMinReq === false && "border-red-300/50 dark:border-red-800/50"
+    )}>
+      {/* Does not meet min requirement badge (top-right corner) */}
+      {meetsMinReq === false && (
+        <div className="absolute top-2 right-2 z-10">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1 bg-red-500/15 text-red-600 dark:text-red-400 text-xs px-1.5 py-0.5 rounded-full cursor-help">
+                <AlertTriangle className="w-3 h-3" />
+                <span className="hidden sm:inline">
+                  {language === "en" ? "Below min. req." : language === "zh-CN" ? "不符合最低要求" : "不符合最低要求"}
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              {language === "en" ? "Your DSE results do not meet the minimum entry requirements for this course" : language === "zh-CN" ? "您的文憑试成绩不符合此课程的最低入学要求" : "您的文憑試成績不符合此課程的最低入學要求"}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      )}
       {/* Badges row */}
       <div className="flex items-center gap-1.5 mb-3 flex-wrap">
         {course.jupasCode && (
@@ -537,7 +562,6 @@ export default function Courses() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedTuitionMin(tuitionMin);
-      setPage(1);
     }, 600);
     return () => clearTimeout(timer);
   }, [tuitionMin]);
@@ -545,10 +569,12 @@ export default function Courses() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedTuitionMax(tuitionMax);
-      setPage(1);
     }, 600);
     return () => clearTimeout(timer);
   }, [tuitionMax]);
+
+  // Reset page when debounced tuition values change
+  useEffect(() => { setPage(1); }, [debouncedTuitionMin, debouncedTuitionMax]);
 
   const parsedTuitionMin = debouncedTuitionMin ? parseInt(debouncedTuitionMin.replace(/\D/g, "")) : undefined;
   const parsedTuitionMax = debouncedTuitionMax ? parseInt(debouncedTuitionMax.replace(/\D/g, "")) : undefined;

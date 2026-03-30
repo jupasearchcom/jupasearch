@@ -181,6 +181,8 @@ export default function Choices() {
     setLocalChoices((prev) =>
       prev.filter((c) => c.courseId !== courseId).map((c, i) => ({ ...c, rank: i + 1 }))
     );
+    // Move removed course back to pending staging area
+    setPendingIds((prev) => prev.includes(courseId) ? prev : [courseId, ...prev]);
     setIsDirty(true);
   }, []);
 

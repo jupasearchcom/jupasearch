@@ -257,31 +257,24 @@ export default function DSEScores() {
 
   const electives = language === "zh-CN" ? ELECTIVE_SUBJECTS_ZH_CN : language === "en" ? ELECTIVE_SUBJECTS_EN : ELECTIVE_SUBJECTS_ZH_TW;
 
+  // Use language codes as values (language-independent) to avoid mismatch when UI language changes
+  const OTHER_LANG_CODES = ["french", "german", "japanese", "korean", "spanish", "urdu"] as const;
   const otherLanguageGrades: Record<string, readonly string[]> = {
-    "法語": FRENCH_GERMAN_SPANISH_GRADES,
-    "德語": FRENCH_GERMAN_SPANISH_GRADES,
-    "西班牙語": FRENCH_GERMAN_SPANISH_GRADES,
-    "日語": JAPANESE_GRADES,
-    "韓語": KOREAN_GRADES,
-    "烏爾都語": URDU_GRADES,
-    "French": FRENCH_GERMAN_SPANISH_GRADES,
-    "German": FRENCH_GERMAN_SPANISH_GRADES,
-    "Spanish": FRENCH_GERMAN_SPANISH_GRADES,
-    "Japanese": JAPANESE_GRADES,
-    "Korean": KOREAN_GRADES,
-    "Urdu": URDU_GRADES,
-    "法语": FRENCH_GERMAN_SPANISH_GRADES,
-    "德语": FRENCH_GERMAN_SPANISH_GRADES,
-    "西班牙语": FRENCH_GERMAN_SPANISH_GRADES,
-    "日语": JAPANESE_GRADES,
-    "韩语": KOREAN_GRADES,
-    "乌尔都语": URDU_GRADES,
+    "french": FRENCH_GERMAN_SPANISH_GRADES,
+    "german": FRENCH_GERMAN_SPANISH_GRADES,
+    "spanish": FRENCH_GERMAN_SPANISH_GRADES,
+    "japanese": JAPANESE_GRADES,
+    "korean": KOREAN_GRADES,
+    "urdu": URDU_GRADES,
   };
 
-  const otherLanguageOptions = {
-    "zh-TW": ["法語", "德語", "日語", "韓語", "西班牙語", "烏爾都語"],
-    "zh-CN": ["法语", "德语", "日语", "韩语", "西班牙语", "乌尔都语"],
-    "en": ["French", "German", "Japanese", "Korean", "Spanish", "Urdu"],
+  const otherLanguageLabels: Record<string, Record<string, string>> = {
+    "french":   { "zh-TW": "法語",     "zh-CN": "法语",     "en": "French" },
+    "german":   { "zh-TW": "德語",     "zh-CN": "德语",     "en": "German" },
+    "japanese": { "zh-TW": "日語",     "zh-CN": "日语",     "en": "Japanese" },
+    "korean":   { "zh-TW": "韓語",     "zh-CN": "韩语",     "en": "Korean" },
+    "spanish":  { "zh-TW": "西班牙語", "zh-CN": "西班牙语", "en": "Spanish" },
+    "urdu":     { "zh-TW": "烏爾都語", "zh-CN": "乌尔都语", "en": "Urdu" },
   };
 
   const currentOtherLangGrades = scores.otherLanguage
@@ -336,17 +329,7 @@ export default function DSEScores() {
         <p className="text-sm text-muted-foreground leading-relaxed">{t.subtitle[l]}</p>
       </div>
 
-      {/* Score summary */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="border border-border rounded-xl p-4 text-center">
-          <div className="text-3xl font-bold mb-1" style={{ fontFamily: "'Playfair Display', serif" }}>{best5}</div>
-          <div className="text-xs text-muted-foreground">{t.best5[l]}</div>
-        </div>
-        <div className="border border-border rounded-xl p-4 text-center">
-          <div className="text-3xl font-bold mb-1" style={{ fontFamily: "'Playfair Display', serif" }}>{best6}</div>
-          <div className="text-xs text-muted-foreground">{t.best6[l]}</div>
-        </div>
-      </div>
+
 
       <div className="space-y-6">
         {/* Core Subjects */}
@@ -492,9 +475,10 @@ export default function DSEScores() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">—</SelectItem>
-                {appliedLearningSubjects.map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                ))}
+                {appliedLearningSubjects.map((s) => {
+                  const name = language === "zh-CN" ? (s.nameZhCn || s.nameZhTw) : language === "en" ? (s.nameEn || s.nameZhTw) : s.nameZhTw;
+                  return <SelectItem key={s.nameZhTw} value={s.nameZhTw}>{name}</SelectItem>;
+                })}
               </SelectContent>
             </Select>
             <Select
@@ -531,8 +515,10 @@ export default function DSEScores() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">—</SelectItem>
-                {(otherLanguageOptions[language as keyof typeof otherLanguageOptions] ?? otherLanguageOptions["zh-TW"]).map((lang) => (
-                  <SelectItem key={lang} value={lang}>{lang}</SelectItem>
+                {OTHER_LANG_CODES.map((code) => (
+                  <SelectItem key={code} value={code}>
+                    {otherLanguageLabels[code]?.[language] ?? otherLanguageLabels[code]?.["zh-TW"] ?? code}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

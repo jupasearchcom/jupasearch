@@ -376,17 +376,29 @@ export const appRouter = router({
 
   // ─── System Settings ──────────────────────────────────────────────────────
   settings: router({
-    // Get applied learning subjects list (public)
+    // Get applied learning subjects list (public) - returns array of {nameZhTw, nameZhCn, nameEn}
     getAppliedLearningSubjects: publicProcedure.query(async () => {
-      const val = await getSystemSetting("applied_learning_subjects");
-      return Array.isArray(val) ? (val as string[]) : [];
+      const val = await getSystemSetting("applied_learning_subjects_v2");
+      if (Array.isArray(val)) return val as { nameZhTw: string; nameZhCn: string; nameEn: string }[];
+      // Fallback: try legacy string array
+      const legacy = await getSystemSetting("applied_learning_subjects");
+      if (Array.isArray(legacy)) {
+        return (legacy as string[]).map((s) => ({ nameZhTw: s, nameZhCn: s, nameEn: s }));
+      }
+      return [] as { nameZhTw: string; nameZhCn: string; nameEn: string }[];
     }),
 
     // Set applied learning subjects list (admin only)
     setAppliedLearningSubjects: adminProcedure
-      .input(z.object({ subjects: z.array(z.string()) }))
+      .input(z.object({
+        subjects: z.array(z.object({
+          nameZhTw: z.string(),
+          nameZhCn: z.string().optional().default(""),
+          nameEn: z.string().optional().default(""),
+        }))
+      }))
       .mutation(async ({ input }) => {
-        await setSystemSetting("applied_learning_subjects", input.subjects);
+        await setSystemSetting("applied_learning_subjects_v2", input.subjects);
         return { success: true };
       }),
   }),

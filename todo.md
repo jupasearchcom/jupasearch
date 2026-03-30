@@ -155,3 +155,13 @@
 - [x] Bug 8: DSE 成績「應用學習科目」改為後台設定（Admin 頁面新增應用學習科目管理對話框）
 - [x] Bug 9: DSE 成績「其他語言科目」列表無法選擇（修復 value="none" 處理）
 - [x] Feature 10: 篩選「僅列出符合最低要求的課程」（332A33 等格式 + scoreFormula.minSubjectRequirements）
+
+## Bug Fix & Feature Batch 4 (2026-03-30)
+- [x] Bug 1: 學費輸入仍一次只能輸入一個數字（移除 debounce effect 中的 setPage(1)，避免每次輸入後重置頁面）
+- [x] Bug 2: 其他語言科目列表仍無法選擇（改用語言代碼存儲，解決語言切換時 value 不匹配問題）
+- [x] Bug 3: 志願表刪除課程後應返回「待加入課程」列表（removeChoice 後自動把課程加回 pendingIds）
+- [x] Bug 4: 應用學習科目後台設定加入繁中/簡中/英文名稱欄位（AppliedLearningDialog 改為三欄輸入）
+- [x] Bug 5: 移除「文憑試成績」頁面上方的「Best 5」「Best 6」模塊
+- [x] Bug 6: 不符合最低收生要求的課程右上角顯示紅色警告提示（僅在已輸入 DSE 成績時顯示）
+- [x] Bug 7: 課程基本資料的「面試安排」顯示翻譯 key（在 LanguageContext 加入舊鍵名向後兼容映射）
+- [x] Bug 8: 未登入時仍無法把課程加至收藏（main.tsx 排除 favorites.add/remove 的 UNAUTHORIZED 錯誤觸發全局重定向）

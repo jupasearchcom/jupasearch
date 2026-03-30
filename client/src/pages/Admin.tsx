@@ -492,14 +492,22 @@ function BulkImportDialog({ open, onClose, onSuccess }: { open: boolean; onClose
 }
 
 // ─── Applied Learning Subjects Dialog ───────────────────────────────────────────────────────────────
+type AppliedSubject = { nameZhTw: string; nameZhCn: string; nameEn: string };
+
 function AppliedLearningDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const utils = trpc.useUtils();
   const { data: subjects = [], isLoading } = trpc.settings.getAppliedLearningSubjects.useQuery();
-  const [localSubjects, setLocalSubjects] = useState<string[]>([]);
-  const [newSubject, setNewSubject] = useState("");
+  const [localSubjects, setLocalSubjects] = useState<AppliedSubject[]>([]);
+  const [newZhTw, setNewZhTw] = useState("");
+  const [newZhCn, setNewZhCn] = useState("");
+  const [newEn, setNewEn] = useState("");
 
   useEffect(() => {
-    if (subjects.length > 0) setLocalSubjects(subjects);
+    if (subjects.length > 0) setLocalSubjects(subjects.map((s) => ({
+      nameZhTw: s.nameZhTw,
+      nameZhCn: s.nameZhCn ?? "",
+      nameEn: s.nameEn ?? "",
+    })));
   }, [subjects]);
 
   const setMutation = trpc.settings.setAppliedLearningSubjects.useMutation({
@@ -512,14 +520,14 @@ function AppliedLearningDialog({ open, onClose }: { open: boolean; onClose: () =
   });
 
   const handleAdd = () => {
-    const trimmed = newSubject.trim();
-    if (!trimmed || localSubjects.includes(trimmed)) return;
-    setLocalSubjects((prev) => [...prev, trimmed]);
-    setNewSubject("");
+    const trimmed = newZhTw.trim();
+    if (!trimmed || localSubjects.some((s) => s.nameZhTw === trimmed)) return;
+    setLocalSubjects((prev) => [...prev, { nameZhTw: trimmed, nameZhCn: newZhCn.trim(), nameEn: newEn.trim() }]);
+    setNewZhTw(""); setNewZhCn(""); setNewEn("");
   };
 
-  const handleRemove = (s: string) => {
-    setLocalSubjects((prev) => prev.filter((x) => x !== s));
+  const handleRemove = (nameZhTw: string) => {
+    setLocalSubjects((prev) => prev.filter((x) => x.nameZhTw !== nameZhTw));
   };
 
   const handleSave = () => {
@@ -528,38 +536,38 @@ function AppliedLearningDialog({ open, onClose }: { open: boolean; onClose: () =
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>應用學習科目管理</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <p className="text-xs text-muted-foreground">設定在「文憑試成績」頁面顯示的應用學習科目列表。</p>
+          <p className="text-xs text-muted-foreground">設定在「文憑試成績」頁面顯示的應用學習科目列表，可同時輸入繁中/簡中/英文名稱。</p>
           {isLoading ? (
             <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin" /></div>
           ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
+            <div className="space-y-2 max-h-56 overflow-y-auto">
               {localSubjects.map((s) => (
-                <div key={s} className="flex items-center justify-between gap-2 px-3 py-2 border border-border rounded-lg">
-                  <span className="text-sm">{s}</span>
-                  <Button variant="ghost" size="icon" className="w-6 h-6 text-muted-foreground hover:text-destructive" onClick={() => handleRemove(s)}>
+                <div key={s.nameZhTw} className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg">
+                  <div className="flex-1 grid grid-cols-3 gap-1 text-xs">
+                    <span className="font-medium">{s.nameZhTw}</span>
+                    <span className="text-muted-foreground">{s.nameZhCn || "—"}</span>
+                    <span className="text-muted-foreground">{s.nameEn || "—"}</span>
+                  </div>
+                  <Button variant="ghost" size="icon" className="w-6 h-6 shrink-0 text-muted-foreground hover:text-destructive" onClick={() => handleRemove(s.nameZhTw)}>
                     <Trash2 className="w-3 h-3" />
                   </Button>
                 </div>
               ))}
             </div>
           )}
-          <div className="flex gap-2">
-            <Input
-              placeholder="新增應用學習科目名稱"
-              value={newSubject}
-              onChange={(e) => setNewSubject(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              className="flex-1"
-            />
-            <Button variant="outline" size="sm" onClick={handleAdd} disabled={!newSubject.trim()}>
-              <Plus className="w-4 h-4" />
-            </Button>
+          <div className="grid grid-cols-3 gap-2">
+            <Input placeholder="繁體中文名稱*" value={newZhTw} onChange={(e) => setNewZhTw(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAdd()} />
+            <Input placeholder="簡体中文名稱" value={newZhCn} onChange={(e) => setNewZhCn(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAdd()} />
+            <Input placeholder="English name" value={newEn} onChange={(e) => setNewEn(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAdd()} />
           </div>
+          <Button variant="outline" size="sm" onClick={handleAdd} disabled={!newZhTw.trim()} className="w-full">
+            <Plus className="w-4 h-4 mr-1" /> 新增科目
+          </Button>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>取消</Button>
