@@ -378,13 +378,17 @@ function CourseCard({
       </Link>
       <p className="text-xs text-muted-foreground mb-3">{institutionName}</p>
 
-      {/* Stats grid — more data */}
+      {/* Stats grid — 3 rows x 3 cols */}
+      {/* Row 1: 收生人數 / 去年加成後中位數 / 去年加成後下四分位數 */}
       <div className="grid grid-cols-3 gap-2 mb-2">
         <StatCell label={t("courses.col.quota")} value={course.quota?.toString() ?? "—"} />
         <StatCell label={t("courses.col.median")} value={formatScore(course.lastYearMedian)} />
         <StatCell label={t("courses.col.q1")} value={formatScore(course.lastYearQ1)} />
-        <StatCell label={t("courses.col.minReq")} value={course.minRequirement ?? "—"} />
-        <StatCell label={t("courses.col.tuition")} value={formatTuition(course.tuitionFee)} />
+      </div>
+      {/* Row 2: 去年總申請人數 / 去年組別A申請人數 / 去年取錄人數 */}
+      <div className="grid grid-cols-3 gap-2 mb-2">
+        <StatCell label={t("courses.col.totalApplicants")} value={course.lastYearTotalApplicants?.toString() ?? "—"} />
+        <StatCell label={t("courses.col.groupAApplicants")} value={course.lastYearGroupAApplicants?.toString() ?? "—"} />
         <StatCell
           label={t("courses.col.admitted")}
           value={course.lastYearAdmitted
@@ -392,10 +396,10 @@ function CourseCard({
             : "—"}
         />
       </div>
-      {/* Second row of stats */}
+      {/* Row 3: 最低要求 / 學費 / 年期 */}
       <div className="grid grid-cols-3 gap-2 mb-2">
-        <StatCell label={t("courses.col.totalApplicants")} value={course.lastYearTotalApplicants?.toString() ?? "—"} />
-        <StatCell label={t("courses.col.groupAApplicants")} value={course.lastYearGroupAApplicants?.toString() ?? "—"} />
+        <StatCell label={t("courses.col.minReq")} value={course.minRequirement ?? "—"} />
+        <StatCell label={t("courses.col.tuition")} value={formatTuition(course.tuitionFee)} />
         <StatCell label={t("courses.col.duration")} value={course.duration ? `${course.duration}${language === "en" ? "yr" : "年"}` : "—"} />
       </div>
 
@@ -536,7 +540,7 @@ function CheckboxGroup({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Courses() {
   const { t, language } = useLanguage();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [, navigate] = useLocation();
 
   // Filters state
@@ -659,6 +663,8 @@ export default function Courses() {
   });
 
   const handleToggleFavorite = useCallback((course: Course) => {
+    // Wait for auth to fully resolve before deciding path
+    if (authLoading) return;
     if (isAuthenticated) {
       if (favoriteIds.includes(course.id)) {
         removeFav.mutate({ courseId: course.id });
@@ -668,6 +674,7 @@ export default function Courses() {
         toast.success(t("courses.addToFavorites"));
       }
     } else {
+      // Guest mode: use localStorage directly
       const current = getLocalFavoriteIds();
       let updated: number[];
       if (current.includes(course.id)) {
@@ -680,7 +687,7 @@ export default function Courses() {
       setLocalFavoriteIds(updated);
       setLocalFavIds(updated);
     }
-  }, [isAuthenticated, favoriteIds, addFav, removeFav, t]);
+  }, [authLoading, isAuthenticated, favoriteIds, addFav, removeFav, t]);
 
   const handleAddToChoices = useCallback((course: Course) => {
     // Add to pending staging area (jupasearch_choices_pending)

@@ -185,7 +185,8 @@ function gradeToScore(grade: string): number {
 
 export default function DSEScores() {
   const { language } = useLanguage();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading, user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [scores, setScores] = useState<DSEScoreData>(loadFromCookie);
   const [saved, setSaved] = useState(false);
 
@@ -451,8 +452,8 @@ export default function DSEScores() {
           </div>
         </div>
 
-        {/* Applied Learning */}
-        <div className="border border-border rounded-xl p-5">
+        {/* Applied Learning — admin only */}
+        {isAdmin && <div className="border border-border rounded-xl p-5">
           <div className="flex items-start justify-between mb-4">
             <div>
               <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">{t.appliedLearning[l]}</h2>
@@ -496,10 +497,10 @@ export default function DSEScores() {
               </SelectContent>
             </Select>
           </div>
-        </div>
+        </div>}
 
-        {/* Other Language */}
-        <div className="border border-border rounded-xl p-5">
+        {/* Other Language — admin only */}
+        {isAdmin && <div className="border border-border rounded-xl p-5">
           <h2 className="font-semibold mb-4 text-sm uppercase tracking-wide text-muted-foreground">{t.otherLanguage[l]}</h2>
           <div className="flex items-center gap-3">
             <Select
@@ -537,7 +538,7 @@ export default function DSEScores() {
               </SelectContent>
             </Select>
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* Actions */}

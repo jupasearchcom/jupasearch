@@ -53,11 +53,6 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/dse" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  {language === "en" ? "DSE Score Input" : language === "zh-CN" ? "文凭试成绩" : "文憑試成績"}
-                </Link>
-              </li>
-              <li>
                 <span className="text-sm text-muted-foreground/40 cursor-not-allowed">
                   {language === "en" ? "E-APP (Coming Soon)" : language === "zh-CN" ? "E-APP（即将推出）" : "E-APP（即將推出）"}
                 </span>
@@ -74,6 +69,11 @@ export default function Footer() {
           <div>
             <h4 className="font-semibold text-sm mb-3">{toolsTitle}</h4>
             <ul className="space-y-2">
+              <li>
+                <Link href="/dse" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  {language === "en" ? "DSE Score Input" : language === "zh-CN" ? "文凭试成绩" : "文憑試成績"}
+                </Link>
+              </li>
               <li>
                 <Link href="/compare" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   {language === "en" ? "Compare Courses" : language === "zh-CN" ? "课程比较" : "課程比較"}

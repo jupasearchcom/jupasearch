@@ -331,7 +331,7 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Footer
     "footer.disclaimer": "本平台為第三方資訊平台，所有資料僅供參考，請以各院校官方公佈為準。",
-    "footer.copyright": "© 2025 JupaSearch. 版權所有。",
+    "footer.copyright": "© 2026 JupaSearch. 版權所有。",
   },
 
   "zh-CN": {
@@ -551,7 +551,7 @@ const translations: Record<Language, Record<string, string>> = {
     "common.noData": "暂无资料",
     "common.points": "分",
     "footer.disclaimer": "本平台为第三方信息平台，所有资料仅供参考，请以各院校官方公布为准。",
-    "footer.copyright": "© 2025 JupaSearch. 版权所有。",
+    "footer.copyright": "© 2026 JupaSearch. 版权所有。",
   },
 
   en: {
@@ -771,7 +771,7 @@ const translations: Record<Language, Record<string, string>> = {
     "common.noData": "No data available",
     "common.points": "pts",
     "footer.disclaimer": "This is a third-party information platform. All data is for reference only. Please refer to official university announcements.",
-    "footer.copyright": "© 2025 JupaSearch. All rights reserved.",
+    "footer.copyright": "© 2026 JupaSearch. All rights reserved.",
   },
 };
 
