@@ -85,6 +85,13 @@ const courseInputSchema = z.object({
     weighted: z.array(z.object({ subject: z.string(), multiplier: z.number() })),
     coreSubjects: z.array(z.string()),
   }).optional(),
+  scoringScale: z.enum(["8.5", "7"]).optional(),
+  specificSubjectRequirements: z.object({
+    groups: z.array(z.object({
+      subjects: z.array(z.string()),
+      minGrade: z.number().int().min(1).max(5),
+    })).max(4),
+  }).optional(),
 });
 
 // ─── Filters schema ───────────────────────────────────────────────────────────

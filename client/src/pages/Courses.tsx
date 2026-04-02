@@ -73,28 +73,29 @@ function loadDseFromCookie(): DSEScoreData | null {
   } catch { return null; }
 }
 
-function dseGradeToScore(grade: string): number {
-  const map: Record<string, number> = {
-    "5**": 7, "5*": 6, "5": 5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0, "—": 0,
-  };
+function dseGradeToScore(grade: string, scale?: string): number {
+  if (scale === "8.5") {
+    const map: Record<string, number> = { "5**": 8.5, "5*": 7, "5": 5.5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0, "—": 0 };
+    return map[grade] ?? 0;
+  }
+  // Default / "7" scale
+  const map: Record<string, number> = { "5**": 7, "5*": 6, "5": 5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0, "—": 0 };
   return map[grade] ?? 0;
 }
 
 function computeMyScore(course: Course, dse: DSEScoreData): number | null {
   const formula = (course as any).scoreFormula;
   if (!formula) return null;
+  const scale = (course as any).scoringScale as string | undefined;
 
   // Build score map
   const scoreMap: Record<string, number> = {};
-  scoreMap["chinese"] = dseGradeToScore(dse.chinese);
-  scoreMap["english"] = dseGradeToScore(dse.english);
-  scoreMap["math"] = dseGradeToScore(dse.math);
-  // mathExtended stores the subject key ("m1" or "m2"), not the grade
-  // The grade is stored in elective slots if user selected M1/M2 as elective
-  // For simplicity, we skip M1/M2 here as they are typically counted as electives
-  // Electives
-  [[dse.elective1Subject, dse.elective1Grade],[dse.elective2Subject, dse.elective2Grade],[dse.elective3Subject, dse.elective3Grade]]
-    .forEach(([subj, grade]) => { if (subj) scoreMap[subj] = dseGradeToScore(grade); });
+  scoreMap["chinese"] = dseGradeToScore(dse.chinese, scale);
+  scoreMap["english"] = dseGradeToScore(dse.english, scale);
+  scoreMap["math"] = dseGradeToScore(dse.math, scale);
+  // Electives (including 4th elective)
+  [[dse.elective1Subject, dse.elective1Grade],[dse.elective2Subject, dse.elective2Grade],[dse.elective3Subject, dse.elective3Grade],[(dse as any).elective4Subject, (dse as any).elective4Grade]]
+    .forEach(([subj, grade]) => { if (subj) scoreMap[subj] = dseGradeToScore(grade, scale); });
   // Applied Learning
   if (dse.appliedLearningSubject) {
     const alMap: Record<string, number> = { "達標並表現優異（I）": 3, "達標並表現優異（II）": 4, "達標": 2, "未達標": 0 };
@@ -170,19 +171,34 @@ function checkMeetsMinRequirement(course: Course, dse: DSEScoreData | null): boo
     if (!gradeAtLeast(dse.math, mathReq)) return false;
   }
 
-  // Check specific subject requirements from scoreFormula.minSubjectRequirements
+  // Build user subject map for requirement checks
+  const userSubjects: Record<string, string> = {
+    chinese: dse.chinese, english: dse.english, math: dse.math,
+    [dse.elective1Subject]: dse.elective1Grade,
+    [dse.elective2Subject]: dse.elective2Grade,
+    [dse.elective3Subject]: dse.elective3Grade,
+    [(dse as any).elective4Subject ?? ""]: (dse as any).elective4Grade ?? "—",
+  };
+
+  // Check legacy scoreFormula.minSubjectRequirements
   const formula = (course as any).scoreFormula;
   if (formula?.minSubjectRequirements) {
-    const userSubjects: Record<string, string> = {
-      chinese: dse.chinese, english: dse.english, math: dse.math,
-      [dse.elective1Subject]: dse.elective1Grade,
-      [dse.elective2Subject]: dse.elective2Grade,
-      [dse.elective3Subject]: dse.elective3Grade,
-      [dse.elective4Subject ?? ""]: dse.elective4Grade ?? "—",
-    };
     for (const subReq of formula.minSubjectRequirements) {
       const userGrade = userSubjects[subReq.subject];
       if (!userGrade || !gradeAtLeast(userGrade, subReq.minGrade)) return false;
+    }
+  }
+
+  // Check new specificSubjectRequirements (groups with OR within group, AND between groups)
+  const specificReqs = (course as any).specificSubjectRequirements;
+  if (specificReqs?.groups && Array.isArray(specificReqs.groups)) {
+    for (const group of specificReqs.groups) {
+      const minGradeStr = String(group.minGrade);
+      const anyMeets = (group.subjects as string[]).some((subj) => {
+        const userGrade = userSubjects[subj];
+        return userGrade && gradeAtLeast(userGrade, minGradeStr);
+      });
+      if (!anyMeets) return false;
     }
   }
 

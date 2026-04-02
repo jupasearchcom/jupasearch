@@ -44,8 +44,6 @@ export default function Compare() {
 
   const rows: { label: string; key: keyof Course; format?: (v: any) => string; bool?: boolean }[] = [
     { label: t("courses.col.quota"), key: "quota" },
-    { label: t("courses.col.median"), key: "lastYearMedian" },
-    { label: t("courses.col.q1"), key: "lastYearQ1" },
     { label: t("courses.col.minReq"), key: "minRequirement" },
     { label: t("courses.col.tuition"), key: "tuitionFee", format: (v) => v ? `$${v.toLocaleString()}` : "—" },
     { label: t("courses.col.admitted"), key: "lastYearAdmitted" },

@@ -165,3 +165,13 @@
 - [x] Bug 6: 不符合最低收生要求的課程右上角顯示紅色警告提示（僅在已輸入 DSE 成績時顯示）
 - [x] Bug 7: 課程基本資料的「面試安排」顯示翻譯 key（在 LanguageContext 加入舊鍵名向後兼容映射）
 - [x] Bug 8: 未登入時仍無法把課程加至收藏（main.tsx 排除 favorites.add/remove 的 UNAUTHORIZED 錯誤觸發全局重定向）
+
+## Bug Fix & Feature Batch 5 (2026-04-02)
+- [x] Bug 1: Footer「文憑試成績」移至「升學工具」分類下
+- [x] Bug 2: 面試安排篩選不匹配（在 db.ts 加入新舊鍵名映射：yes_all→all_applicants, yes_selective→selective_basis, no→no_interview）
+- [x] Bug 3: 未登入收藏（加入 authLoading 判斷，auth 狀態穩定後才決定走 API 或本地路徑）
+- [x] Feature 4: 應用學習/其他語言科目僅 admin 帳戶登入後可見
+- [x] Feature 5: 課程後台新增「計分比例尺」選項（8.5 scale / 7 scale），計算「我的分數」時按比例尺轉換
+- [x] Feature 6: 課程後台新增「特定科目最低要求」視覺化設定（最多4組，每組最多5科，設定最低等級）
+- [x] Feature 7: 比較列表移除中位數和下四分位數欄位
+- [x] Feature 8: 待加入課程列表無論是否空白都常駐顯示

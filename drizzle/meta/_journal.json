@@ -36,6 +36,13 @@
       "when": 1774820659060,
       "tag": "0004_curved_aqueduct",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1774973453874,
+      "tag": "0005_colossal_the_stranger",
+      "breakpoints": true
     }
   ]
 }

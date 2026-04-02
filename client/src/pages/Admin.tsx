@@ -81,6 +81,8 @@ interface CourseFormData {
   acceptMultipleSittings: string;
   flexibleAdmission: boolean;
   scoreFormulaJson: string; // JSON string for scoreFormula
+  scoringScale: string; // "8.5" or "7"
+  specificSubjectGroups: Array<{ subjects: string[]; minGrade: string }>; // up to 4 groups
 }
 
 const emptyForm: CourseFormData = {
@@ -93,7 +95,8 @@ const emptyForm: CourseFormData = {
   scoringMethodChanged: false, isNew: false,
   descriptionZhTw: "", careerProspectsZhTw: "", websiteUrl: "",
   jupasOfficialUrl: "", acceptMultipleSittings: "", flexibleAdmission: false,
-  scoreFormulaJson: "",
+  scoreFormulaJson: "", scoringScale: "",
+  specificSubjectGroups: [],
 };
 
 function courseToForm(course: Course): CourseFormData {
@@ -129,6 +132,14 @@ function courseToForm(course: Course): CourseFormData {
     acceptMultipleSittings: (course as any).acceptMultipleSittings ?? "",
     flexibleAdmission: (course as any).flexibleAdmission ?? false,
     scoreFormulaJson: course.scoreFormula ? JSON.stringify(course.scoreFormula, null, 2) : "",
+    scoringScale: (course as any).scoringScale ?? "",
+    specificSubjectGroups: (() => {
+      const req = (course as any).specificSubjectRequirements;
+      if (req?.groups && Array.isArray(req.groups)) {
+        return req.groups.map((g: any) => ({ subjects: g.subjects ?? [], minGrade: String(g.minGrade ?? "3") }));
+      }
+      return [];
+    })(),
   };
 }
 
@@ -168,6 +179,10 @@ function formToInput(form: CourseFormData) {
       if (!form.scoreFormulaJson.trim()) return undefined;
       try { return JSON.parse(form.scoreFormulaJson); } catch { return undefined; }
     })(),
+    scoringScale: (form.scoringScale as "8.5" | "7") || undefined,
+    specificSubjectRequirements: form.specificSubjectGroups.length > 0
+      ? { groups: form.specificSubjectGroups.map(g => ({ subjects: g.subjects, minGrade: isNaN(parseInt(g.minGrade)) ? 5 : parseInt(g.minGrade) })) }
+      : undefined,
     moduleType: "jupas" as const,
   };
 }
@@ -416,6 +431,89 @@ function CourseFormDialog({
               try { JSON.parse(form.scoreFormulaJson); return <p className="text-[10px] text-green-500 mt-1">✓ JSON 格式正確</p>; }
               catch { return <p className="text-[10px] text-red-500 mt-1">✗ JSON 格式錯誤</p>; }
             })()}
+          </div>
+
+          {/* Scoring Scale */}
+          <div className="col-span-2">
+            <FormField label="計分比例尺">
+              <Select value={form.scoringScale} onValueChange={(v) => set("scoringScale", v)}>
+                <SelectTrigger><SelectValue placeholder="選擇比例尺（可選）" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="8.5">8.5 Scale（5**=8.5, 5*=7, 5=5.5, 4=4, 3=3, 2=2, 1=1）</SelectItem>
+                  <SelectItem value="7">7 Scale（5**=7, 5*=6, 5=5, 4=4, 3=3, 2=2, 1=1）</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground mt-1">設定後，「我的分數」計算時會按此比例尺轉換各科成績</p>
+            </FormField>
+          </div>
+
+          {/* Specific Subject Requirements - Visual UI */}
+          <div className="col-span-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">特定科目最低要求</h4>
+            <p className="text-[10px] text-muted-foreground mb-2">
+              最多 4 組，每組可選最多 5 個科目（組內 OR 關係，組間 AND 關係）及最低等級。<br />
+              例：「英文 ≥ 4」且「物理/生物/化學 ≥ 3」
+            </p>
+            <div className="space-y-2">
+              {form.specificSubjectGroups.map((group, gi) => (
+                <div key={gi} className="border border-border rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">第 {gi + 1} 組</span>
+                    <Button variant="ghost" size="icon" className="w-6 h-6 text-muted-foreground hover:text-destructive"
+                      onClick={() => set("specificSubjectGroups", form.specificSubjectGroups.filter((_, i) => i !== gi))}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {group.subjects.map((subj, si) => (
+                      <span key={si} className="inline-flex items-center gap-1 bg-secondary text-xs px-2 py-0.5 rounded">
+                        {subj}
+                        <button className="text-muted-foreground hover:text-destructive" onClick={() => {
+                          const newGroups = [...form.specificSubjectGroups];
+                          newGroups[gi] = { ...group, subjects: group.subjects.filter((_, i) => i !== si) };
+                          set("specificSubjectGroups", newGroups);
+                        }}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                  {group.subjects.length < 5 && (
+                    <Select onValueChange={(v) => {
+                      if (!group.subjects.includes(v)) {
+                        const newGroups = [...form.specificSubjectGroups];
+                        newGroups[gi] = { ...group, subjects: [...group.subjects, v] };
+                        set("specificSubjectGroups", newGroups);
+                      }
+                    }}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="新增科目" /></SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {["chinese","english","math","mathExtended","物理","化學","生物","組合科學（物理、化學）","組合科學（化學、生物）","組合科學（物理、生物）","綜合科學","資訊及通訊科技","設計與應用科技","健康管理與社會關懷","科技與生活（服裝、成衣與紡織）","科技與生活（食物科學與科技）","企業、會計與財務概論（會計選修部分）","企業、會計與財務概論（商業管理選修部分）","企業、會計與財務概論","經濟","地理","歷史","中國歷史","倫理與宗教","中國文學","英國文學","旅遊與款待","視覺藝術","音樂","體育"].map(s => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">最低等級：</span>
+                    <Select value={group.minGrade} onValueChange={(v) => {
+                      const newGroups = [...form.specificSubjectGroups];
+                      newGroups[gi] = { ...group, minGrade: v };
+                      set("specificSubjectGroups", newGroups);
+                    }}>
+                      <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {["1","2","3","4","5","5*","5**"].map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              ))}
+              {form.specificSubjectGroups.length < 4 && (
+                <Button variant="outline" size="sm" className="w-full text-xs h-7"
+                  onClick={() => set("specificSubjectGroups", [...form.specificSubjectGroups, { subjects: [], minGrade: "3" }])}>
+                  <Plus className="w-3 h-3 mr-1" /> 新增科目要求組
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
