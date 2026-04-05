@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCompare } from "@/contexts/CompareContext";
@@ -540,7 +540,10 @@ function CheckboxGroup({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Courses() {
   const { t, language } = useLanguage();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated } = useAuth();
+  // Use ref to always read the latest isAuthenticated value inside callbacks (avoids stale closure)
+  const isAuthenticatedRef = useRef(isAuthenticated);
+  useEffect(() => { isAuthenticatedRef.current = isAuthenticated; }, [isAuthenticated]);
   const [, navigate] = useLocation();
 
   // Filters state
@@ -663,9 +666,8 @@ export default function Courses() {
   });
 
   const handleToggleFavorite = useCallback((course: Course) => {
-    // Wait for auth to fully resolve before deciding path
-    if (authLoading) return;
-    if (isAuthenticated) {
+    if (isAuthenticatedRef.current) {
+      // Logged-in: use server API
       if (favoriteIds.includes(course.id)) {
         removeFav.mutate({ courseId: course.id });
         toast.success(t("courses.removeFromFavorites"));
@@ -674,7 +676,7 @@ export default function Courses() {
         toast.success(t("courses.addToFavorites"));
       }
     } else {
-      // Guest mode: use localStorage directly
+      // Guest mode: use localStorage directly (no server call)
       const current = getLocalFavoriteIds();
       let updated: number[];
       if (current.includes(course.id)) {
@@ -687,7 +689,7 @@ export default function Courses() {
       setLocalFavoriteIds(updated);
       setLocalFavIds(updated);
     }
-  }, [authLoading, isAuthenticated, favoriteIds, addFav, removeFav, t]);
+  }, [favoriteIds, addFav, removeFav, t]);
 
   const handleAddToChoices = useCallback((course: Course) => {
     // Add to pending staging area (jupasearch_choices_pending)
