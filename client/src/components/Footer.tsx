@@ -52,16 +52,7 @@ export default function Footer() {
                   {language === "en" ? "JUPAS Courses" : language === "zh-CN" ? "JUPAS 课程搜寻" : "JUPAS 課程搜尋"}
                 </Link>
               </li>
-              <li>
-                <span className="text-sm text-muted-foreground/40 cursor-not-allowed">
-                  {language === "en" ? "E-APP (Coming Soon)" : language === "zh-CN" ? "E-APP（即将推出）" : "E-APP（即將推出）"}
-                </span>
-              </li>
-              <li>
-                <span className="text-sm text-muted-foreground/40 cursor-not-allowed">
-                  {language === "en" ? "Mainland (Coming Soon)" : language === "zh-CN" ? "内地升学（即将推出）" : "內地升學（即將推出）"}
-                </span>
-              </li>
+
             </ul>
           </div>
 
@@ -84,11 +75,7 @@ export default function Footer() {
                   {language === "en" ? "Choice Simulator" : language === "zh-CN" ? "志愿模拟" : "志願模擬"}
                 </Link>
               </li>
-              <li>
-                <Link href="/favorites" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  {language === "en" ? "Saved Courses" : language === "zh-CN" ? "收藏课程" : "收藏課程"}
-                </Link>
-              </li>
+
             </ul>
           </div>
 

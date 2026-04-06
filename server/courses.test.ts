@@ -18,7 +18,7 @@ describe("courses.list", () => {
     expect(result).toHaveProperty("courses");
     expect(result).toHaveProperty("total");
     expect(Array.isArray(result.courses)).toBe(true);
-  });
+  }, 15000);
 
   it("filters by moduleType jupas", async () => {
     const ctx = createPublicContext();

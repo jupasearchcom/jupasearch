@@ -121,7 +121,8 @@ export interface DSEScoreData {
   chinese: string;
   english: string;
   math: string;
-  mathExtended: string;
+  m1: string;
+  m2: string;
   civics: string;
   elective1Subject: string;
   elective1Grade: string;
@@ -141,7 +142,8 @@ const DEFAULT_SCORES: DSEScoreData = {
   chinese: "—",
   english: "—",
   math: "—",
-  mathExtended: "—",
+  m1: "—",
+  m2: "—",
   civics: "達標",
   elective1Subject: "",
   elective1Grade: "—",
@@ -285,9 +287,9 @@ export default function DSEScores() {
   const t = {
     title: { "zh-TW": "文憑試成績", "zh-CN": "文凭试成绩", en: "DSE Scores" },
     subtitle: {
-      "zh-TW": "輸入您的文憑試成績，系統將自動儲存至本機，無需登入即可使用課程搜尋功能。登入後可永久儲存至帳戶。",
-      "zh-CN": "输入您的文凭试成绩，系统将自动保存至本机，无需登录即可使用课程搜寻功能。登录后可永久保存至账户。",
-      en: "Enter your DSE scores. They are automatically saved locally without login. Sign in to save permanently to your account.",
+      "zh-TW": "輸入您的文憑試成績，系統將自動儲存至本機，無需登入即可使用課程搜尋功能。",
+      "zh-CN": "输入您的文凭试成绩，系统将自动保存至本机，无需登录即可使用课程搜尋功能。",
+      en: "Enter your DSE scores. They are automatically saved locally without login, ready to use for course search.",
     },
     core: { "zh-TW": "核心科目", "zh-CN": "核心科目", en: "Core Subjects" },
     electives: { "zh-TW": "選修科目", "zh-CN": "选修科目", en: "Elective Subjects" },
@@ -303,7 +305,8 @@ export default function DSEScores() {
     chinese: { "zh-TW": "中國語文", "zh-CN": "中国语文", en: "Chinese Language" },
     english: { "zh-TW": "英國語文", "zh-CN": "英国语文", en: "English Language" },
     math: { "zh-TW": "數學（必修部分）", "zh-CN": "数学（必修部分）", en: "Mathematics (Compulsory)" },
-    mathExt: { "zh-TW": "數學（延伸部分）", "zh-CN": "数学（延伸部分）", en: "Mathematics (Extended)" },
+    m1: { "zh-TW": "數學延伸部分 M1", "zh-CN": "数学延伸部分 M1", en: "Mathematics Extended M1" },
+    m2: { "zh-TW": "數學延伸部分 M2", "zh-CN": "数学延伸部分 M2", en: "Mathematics Extended M2" },
     civics: { "zh-TW": "公民與社會發展科", "zh-CN": "公民与社会发展科", en: "Citizenship & Social Development" },
     civicsNote: { "zh-TW": "只提供「達標」選項", "zh-CN": "只提供「达标」选项", en: "Only \"Attained\" available" },
     selectSubject: { "zh-TW": "選擇科目", "zh-CN": "选择科目", en: "Select subject" },
@@ -379,10 +382,24 @@ export default function DSEScores() {
                 </SelectContent>
               </Select>
             </div>
-            {/* Math Extended */}
+            {/* Math Extended M1 */}
             <div className="flex items-center gap-3">
-              <Label className="w-48 text-sm flex-shrink-0">{t.mathExt[l]}</Label>
-              <Select value={scores.mathExtended} onValueChange={(v) => handleChange("mathExtended", v)}>
+              <Label className="w-48 text-sm flex-shrink-0">{t.m1[l]}</Label>
+              <Select value={scores.m1} onValueChange={(v) => handleChange("m1", v)}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CORE_GRADES.map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Math Extended M2 */}
+            <div className="flex items-center gap-3">
+              <Label className="w-48 text-sm flex-shrink-0">{t.m2[l]}</Label>
+              <Select value={scores.m2} onValueChange={(v) => handleChange("m2", v)}>
                 <SelectTrigger className="flex-1">
                   <SelectValue />
                 </SelectTrigger>
@@ -548,10 +565,6 @@ export default function DSEScores() {
           <Button variant="outline" size="sm" className="gap-2" onClick={handleReset}>
             <RotateCcw className="w-4 h-4" />
             {t.reset[l]}
-          </Button>
-          <Button variant="outline" size="sm" className="gap-2" onClick={handleSaveToAccount} disabled={saveScoresMutation.isPending}>
-            <Save className="w-4 h-4" />
-            {t.saveToAccount[l]}
           </Button>
           <Link href="/courses">
             <Button size="sm" className="gap-2">

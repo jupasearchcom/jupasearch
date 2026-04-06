@@ -6,11 +6,7 @@ import {
   Search,
   BarChart2,
   ListOrdered,
-  Heart,
   ArrowRight,
-  BookOpen,
-  GraduationCap,
-  Building2,
   ChevronRight,
   Calculator,
 } from "lucide-react";
@@ -50,6 +46,7 @@ export default function Home() {
       href: "/choices",
     },
   ];
+  // Note: Favorites module temporarily removed from public navigation
 
   const institutionsByLang: Record<string, string[]> = {
     "zh-TW": [
@@ -136,27 +133,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Module tabs */}
-      <section className="border-b border-border bg-secondary/30">
-        <div className="container py-4 flex items-center gap-4 overflow-x-auto">
-          <Link href="/courses">
-            <div className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-full text-sm font-medium whitespace-nowrap cursor-pointer">
-              <GraduationCap className="w-4 h-4" />
-              {t("home.modules.jupas")}
-            </div>
-          </Link>
-          <div className="flex items-center gap-2 px-4 py-2 bg-secondary border border-border rounded-full text-sm text-muted-foreground whitespace-nowrap cursor-not-allowed opacity-60">
-            <BookOpen className="w-4 h-4" />
-            {t("home.modules.eapp")}
-            <span className="text-xs bg-border rounded-full px-2 py-0.5">{t("home.modules.eapp.soon")}</span>
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-secondary border border-border rounded-full text-sm text-muted-foreground whitespace-nowrap cursor-not-allowed opacity-60">
-            <Building2 className="w-4 h-4" />
-            {t("home.modules.mainland")}
-            <span className="text-xs bg-border rounded-full px-2 py-0.5">{t("home.modules.mainland.soon")}</span>
-          </div>
-        </div>
-      </section>
+
 
       {/* Features */}
       <section className="container py-16 lg:py-20">

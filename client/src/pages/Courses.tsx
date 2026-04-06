@@ -52,7 +52,7 @@ import type { DSEScoreData } from "./DSEScores";
 // ─── DSE Score Helpers ────────────────────────────────────────────────────────
 const DSE_COOKIE_KEY = "jupasearch_dse_scores";
 const DEFAULT_DSE: DSEScoreData = {
-  chinese: "—", english: "—", math: "—", mathExtended: "—", civics: "達標",
+  chinese: "—", english: "—", math: "—", m1: "—", m2: "—", civics: "達標",
   elective1Subject: "", elective1Grade: "—",
   elective2Subject: "", elective2Grade: "—",
   elective3Subject: "", elective3Grade: "—",
@@ -93,6 +93,9 @@ function computeMyScore(course: Course, dse: DSEScoreData): number | null {
   scoreMap["chinese"] = dseGradeToScore(dse.chinese, scale);
   scoreMap["english"] = dseGradeToScore(dse.english, scale);
   scoreMap["math"] = dseGradeToScore(dse.math, scale);
+  // M1 / M2 (Math Extended)
+  if (dse.m1 && dse.m1 !== "—") scoreMap["m1"] = dseGradeToScore(dse.m1, scale);
+  if (dse.m2 && dse.m2 !== "—") scoreMap["m2"] = dseGradeToScore(dse.m2, scale);
   // Electives (including 4th elective)
   [[dse.elective1Subject, dse.elective1Grade],[dse.elective2Subject, dse.elective2Grade],[dse.elective3Subject, dse.elective3Grade],[(dse as any).elective4Subject, (dse as any).elective4Grade]]
     .forEach(([subj, grade]) => { if (subj) scoreMap[subj] = dseGradeToScore(grade, scale); });
@@ -303,6 +306,7 @@ function CourseCard({
   const { t, language } = useLanguage();
   const { addToCompare, removeFromCompare, isInCompare } = useCompare();
   const inCompare = isInCompare(course.id);
+  const [showDetails, setShowDetails] = useState(false);
 
   // Check if meets minimum requirement (only when DSE scores are entered)
   const meetsMinReq = dseScores ? checkMeetsMinRequirement(course, dseScores) : null;
@@ -380,28 +384,42 @@ function CourseCard({
 
       {/* Stats grid — 3 rows x 3 cols */}
       {/* Row 1: 收生人數 / 去年加成後中位數 / 去年加成後下四分位數 */}
-      <div className="grid grid-cols-3 gap-2 mb-2">
+      <div className="grid grid-cols-3 gap-2 mb-1">
         <StatCell label={t("courses.col.quota")} value={course.quota?.toString() ?? "—"} />
         <StatCell label={t("courses.col.median")} value={formatScore(course.lastYearMedian)} />
         <StatCell label={t("courses.col.q1")} value={formatScore(course.lastYearQ1)} />
       </div>
-      {/* Row 2: 去年總申請人數 / 去年組別A申請人數 / 去年取錄人數 */}
-      <div className="grid grid-cols-3 gap-2 mb-2">
-        <StatCell label={t("courses.col.totalApplicants")} value={course.lastYearTotalApplicants?.toString() ?? "—"} />
-        <StatCell label={t("courses.col.groupAApplicants")} value={course.lastYearGroupAApplicants?.toString() ?? "—"} />
-        <StatCell
-          label={t("courses.col.admitted")}
-          value={course.lastYearAdmitted
-            ? `${course.lastYearAdmitted}${course.lastYearGroupAAdmitted ? ` (${course.lastYearGroupAAdmitted}A)` : ""}`
-            : "—"}
-        />
-      </div>
-      {/* Row 3: 最低要求 / 學費 / 年期 */}
-      <div className="grid grid-cols-3 gap-2 mb-2">
-        <StatCell label={t("courses.col.minReq")} value={course.minRequirement ?? "—"} />
-        <StatCell label={t("courses.col.tuition")} value={formatTuition(course.tuitionFee)} />
-        <StatCell label={t("courses.col.duration")} value={course.duration ? `${course.duration}${language === "en" ? "yr" : "年"}` : "—"} />
-      </div>
+      {/* Toggle button */}
+      <button
+        onClick={() => setShowDetails(prev => !prev)}
+        className="w-full flex items-center justify-center gap-1 py-0.5 mb-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors rounded"
+      >
+        {showDetails
+          ? (language === "en" ? "▲ Less" : "▲ 收起")
+          : (language === "en" ? "▼ More" : "▼ 更多資料")}
+      </button>
+      {/* Rows 2 & 3: collapsible */}
+      {showDetails && (
+        <>
+          {/* Row 2: 去年總申請人數 / 去年組別A申請人數 / 去年取錄人數 */}
+          <div className="grid grid-cols-3 gap-2 mb-1">
+            <StatCell label={t("courses.col.totalApplicants")} value={course.lastYearTotalApplicants?.toString() ?? "—"} />
+            <StatCell label={t("courses.col.groupAApplicants")} value={course.lastYearGroupAApplicants?.toString() ?? "—"} />
+            <StatCell
+              label={t("courses.col.admitted")}
+              value={course.lastYearAdmitted
+                ? `${course.lastYearAdmitted}${course.lastYearGroupAAdmitted ? ` (${course.lastYearGroupAAdmitted}A)` : ""}`
+                : "—"}
+            />
+          </div>
+          {/* Row 3: 最低要求 / 學費 / 修讀年期 */}
+          <div className="grid grid-cols-3 gap-2 mb-1">
+            <StatCell label={t("courses.col.minReq")} value={course.minRequirement ?? "—"} />
+            <StatCell label={t("courses.col.tuition")} value={formatTuition(course.tuitionFee)} />
+            <StatCell label={t("courses.col.duration")} value={course.duration ? `${course.duration}${language === "en" ? "yr" : "年"}` : "—"} />
+          </div>
+        </>
+      )}
 
       {/* My Score row */}
       {dseScores && (
@@ -519,16 +537,16 @@ function CheckboxGroup({
     onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]);
   };
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5 pl-1">
       {options.map((opt) => (
-        <div key={opt} className="flex items-center gap-2">
+        <div key={opt} className="flex items-center gap-2.5">
           <Checkbox
             id={`chk-${opt}`}
             checked={selected.includes(opt)}
             onCheckedChange={() => toggle(opt)}
-            className="w-3.5 h-3.5"
+            className="w-3.5 h-3.5 flex-shrink-0"
           />
-          <Label htmlFor={`chk-${opt}`} className="text-xs cursor-pointer leading-none">
+          <Label htmlFor={`chk-${opt}`} className="text-xs cursor-pointer leading-none select-none">
             {labelFn ? labelFn(opt) : opt}
           </Label>
         </div>
@@ -825,14 +843,14 @@ export default function Courses() {
       </FilterSection>
       <Separator />
       <FilterSection title={t("courses.filter.groupA")}>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5 pl-1">
           <Checkbox
             id="chk-groupA"
             checked={groupAOnly === true}
             onCheckedChange={(checked) => { setGroupAOnly(checked ? true : undefined); setPage(1); }}
-            className="w-3.5 h-3.5"
+            className="w-3.5 h-3.5 flex-shrink-0"
           />
-          <Label htmlFor="chk-groupA" className="text-xs cursor-pointer">
+          <Label htmlFor="chk-groupA" className="text-xs cursor-pointer select-none">
             {t("courses.groupAOnly")}
           </Label>
         </div>
@@ -850,28 +868,28 @@ export default function Courses() {
       </FilterSection>
       <Separator />
       <FilterSection title={language === "en" ? "Flexible Admission" : language === "zh-CN" ? "弹性收生" : "彈性收生"}>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5 pl-1">
           <Checkbox
             id="chk-flexible"
             checked={flexibleAdmission === true}
             onCheckedChange={(checked) => { setFlexibleAdmission(checked ? true : undefined); setPage(1); }}
-            className="w-3.5 h-3.5"
+            className="w-3.5 h-3.5 flex-shrink-0"
           />
-          <Label htmlFor="chk-flexible" className="text-xs cursor-pointer">
-            {language === "en" ? "Flexible Admission Only" : language === "zh-CN" ? "只顯示彈性收生" : "只顯示彈性收生"}
+          <Label htmlFor="chk-flexible" className="text-xs cursor-pointer select-none">
+            {language === "en" ? "Flexible Admission Only" : language === "zh-CN" ? "只显示弹性收生" : "只顯示彈性收生"}
           </Label>
         </div>
       </FilterSection>
       <Separator />
       <FilterSection title={language === "en" ? "Minimum Requirements" : language === "zh-CN" ? "最低要求" : "最低要求"}>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5 pl-1">
           <Checkbox
             id="chk-minreq"
             checked={onlyMeetMinReq}
             onCheckedChange={(checked) => { setOnlyMeetMinReq(!!checked); setPage(1); }}
-            className="w-3.5 h-3.5"
+            className="w-3.5 h-3.5 flex-shrink-0"
           />
-          <Label htmlFor="chk-minreq" className="text-xs cursor-pointer leading-snug">
+          <Label htmlFor="chk-minreq" className="text-xs cursor-pointer leading-snug select-none">
             {language === "en" ? "Only show courses I meet min. requirements" : language === "zh-CN" ? "僅列出符合最低要求的课程" : "僅列出符合最低要求的課程"}
           </Label>
         </div>
@@ -881,34 +899,7 @@ export default function Courses() {
           </p>
         )}
       </FilterSection>
-      <Separator />
-      {/* Tuition: free text input instead of slider */}
-      <FilterSection title={`${t("courses.filter.tuition")} (${t("courses.filter.tuition.unit")})`}>
-        <div className="flex items-center gap-2">
-          <Input
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            placeholder={language === "en" ? "Min" : "最低"}
-            value={tuitionMin}
-            onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ""); setTuitionMin(v); }}
-            className="h-7 text-xs"
-          />
-          <span className="text-xs text-muted-foreground">—</span>
-          <Input
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            placeholder={language === "en" ? "Max" : "最高"}
-            value={tuitionMax}
-            onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ""); setTuitionMax(v); }}
-            className="h-7 text-xs"
-          />
-        </div>
-        <p className="text-[10px] text-muted-foreground mt-1">
-          {language === "en" ? "Annual tuition in HKD" : language === "zh-CN" ? "每年学费（港元）" : "每年學費（港元）"}
-        </p>
-      </FilterSection>
+
     </div>
   );
 
@@ -944,11 +935,18 @@ export default function Courses() {
           )}
         </div>
 
-        <Select value={sortBy} onValueChange={(v) => { setSortBy(v); setPage(1); }}>
+        <Select value={sortBy} onValueChange={(v) => { setSortBy(v === "default" ? "id" : v); setPage(1); }}>
           <SelectTrigger className="w-[200px] h-9">
-            <SelectValue placeholder={t("courses.sort.label")} />
+            <SelectValue>
+              {sortBy === "id"
+                ? (language === "en" ? "Default Sort" : language === "zh-CN" ? "默认排序" : "預設排序")
+                : t(`courses.sort.${sortBy}`)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="default">
+              {language === "en" ? "Default Sort" : language === "zh-CN" ? "默认排序" : "預設排序"}
+            </SelectItem>
             {SORT_OPTIONS.map((opt) => (
               <SelectItem key={opt} value={opt}>{t(`courses.sort.${opt}`)}</SelectItem>
             ))}

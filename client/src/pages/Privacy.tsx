@@ -11,11 +11,11 @@ const content = {
     sections: [
       {
         heading: "收集之資料",
-        body: `當您使用本平台時，我們可能收集以下資料：（1）帳戶資料：您透過 Manus OAuth 登入時提供之姓名及電郵地址；（2）使用資料：您在本平台之操作記錄，包括搜尋記錄、收藏課程、志願選擇及文憑試成績；（3）技術資料：瀏覽器類型、IP 地址及訪問時間等技術資訊。`,
+        body: `當您使用本平台時，我們可能收集以下資料：（1）使用資料：您在本平台之操作記錄，包括搜尋記錄、志願選擇及文憑試成績；（2）技術資料：瀏覽器類型、IP 地址及訪問時間等技術資訊。`,
       },
       {
         heading: "資料用途",
-        body: `我們收集之資料用於：（1）提供及改善本平台之服務；（2）儲存您的收藏課程及志願選擇；（3）分析平台使用情況以改善用戶體驗；（3）防止欺詐及確保平台安全。`,
+        body: `我們收集之資料用於：（1）提供及改善本平台之服務；（2）儲存您的志願選擇；（3）分析平台使用情況以改善用戶體驗；（4）防止欺詐及確保平台安全。`,
       },
       {
         heading: "資料儲存",
@@ -27,7 +27,7 @@ const content = {
       },
       {
         heading: "Cookies",
-        body: `本平台使用 Cookies 及類似技術以維持您的登入狀態及記錄語言偏好。您可透過瀏覽器設定管理 Cookies，惟停用 Cookies 可能影響部分功能之正常使用。`,
+        body: `本平台使用 Cookies 及類似技術以記錄語言偏好及文憑試成績（儲存於本機）。您可透過瀏覽器設定管理 Cookies，惹停用 Cookies 可能影響部分功能之正常使用。`,
       },
       {
         heading: "用戶權利",
@@ -50,11 +50,11 @@ const content = {
     sections: [
       {
         heading: "收集之资料",
-        body: `当您使用本平台时，我们可能收集以下资料：（1）账户资料：您通过 Manus OAuth 登录时提供之姓名及电邮地址；（2）使用资料：您在本平台之操作记录，包括搜索记录、收藏课程、志愿选择及文凭试成绩；（3）技术资料：浏览器类型、IP 地址及访问时间等技术信息。`,
+        body: `当您使用本平台时，我们可能收集以下资料：（1）使用资料：您在本平台之操作记录，包括搜索记录、志愿选择及文凭试成绩；（2）技术资料：浏览器类型、IP 地址及访问时间等技术信息。`,
       },
       {
         heading: "资料用途",
-        body: `我们收集之资料用于：（1）提供及改善本平台之服务；（2）储存您的收藏课程及志愿选择；（3）分析平台使用情况以改善用户体验；（3）防止欺诈及确保平台安全。`,
+        body: `我们收集之资料用于：（1）提供及改善本平台之服务；（2）储存您的志愿选择；（3）分析平台使用情况以改善用户体验；（4）防止欺诈及确保平台安全。`,
       },
       {
         heading: "资料储存",
@@ -66,7 +66,7 @@ const content = {
       },
       {
         heading: "Cookies",
-        body: `本平台使用 Cookies 及类似技术以维持您的登录状态及记录语言偏好。您可通过浏览器设置管理 Cookies，惟停用 Cookies 可能影响部分功能之正常使用。`,
+        body: `本平台使用 Cookies 及类似技术以记录语言偏好及文凭试成绩（保存于本机）。您可通过浏览器设置管理 Cookies，惹停用 Cookies 可能影响部分功能之正常使用。`,
       },
       {
         heading: "用户权利",
@@ -89,11 +89,11 @@ const content = {
     sections: [
       {
         heading: "Data We Collect",
-        body: `When you use this Platform, we may collect the following data: (1) Account data: your name and email address provided when you log in via Manus OAuth; (2) Usage data: your activity on this Platform, including search history, saved courses, JUPAS choice simulations, and AI query history; (3) Technical data: technical information such as browser type, IP address, and access times.`,
+        body: `When you use this Platform, we may collect the following data: (1) Usage data: your activity on this Platform, including search history, JUPAS choice simulations, and DSE scores; (2) Technical data: technical information such as browser type, IP address, and access times.`,
       },
       {
         heading: "How We Use Your Data",
-        body: `Data we collect is used to: (1) provide and improve this Platform's services; (2) save your favourite courses and JUPAS choice simulations; (3) provide personalised AI course recommendations; (4) analyse Platform usage to improve user experience; (5) prevent fraud and ensure Platform security.`,
+        body: `Data we collect is used to: (1) provide and improve this Platform's services; (2) save your JUPAS choice simulations; (3) analyse Platform usage to improve user experience; (4) prevent fraud and ensure Platform security.`,
       },
       {
         heading: "Data Storage",
@@ -105,7 +105,7 @@ const content = {
       },
       {
         heading: "Cookies",
-        body: `This Platform uses cookies and similar technologies to maintain your login state and remember your language preferences. You may manage cookies through your browser settings, though disabling cookies may affect the normal functioning of certain features.`,
+        body: `This Platform uses cookies and similar technologies to remember your language preferences and store your DSE scores locally. You may manage cookies through your browser settings, though disabling cookies may affect the normal functioning of certain features.`,
       },
       {
         heading: "Your Rights",

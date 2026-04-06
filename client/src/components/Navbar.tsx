@@ -20,7 +20,6 @@ import {
   Menu,
   X,
   BookOpen,
-  Heart,
   ListOrdered,
   BarChart2,
   Settings,
@@ -70,7 +69,6 @@ export default function Navbar() {
   const navItems = [
     { href: "/courses", label: t("nav.courses"), icon: BookOpen },
     { href: "/dse", label: language === "en" ? "DSE Scores" : language === "zh-CN" ? "文凭试成绩" : "文憑試成績", icon: Calculator },
-    { href: "/favorites", label: t("nav.favorites"), icon: Heart },
     { href: "/choices", label: t("nav.choices"), icon: ListOrdered },
     { href: "/compare", label: t("nav.compare"), icon: BarChart2 },
   ];
@@ -179,8 +177,8 @@ export default function Navbar() {
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
 
-          {/* Auth */}
-          {isAuthenticated ? (
+          {/* Auth — only show controls when authenticated (admin/user) */}
+          {isAuthenticated && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="gap-2 hidden sm:flex">
@@ -216,15 +214,6 @@ export default function Navbar() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          ) : (
-            <Button
-              size="sm"
-              className="hidden sm:flex gap-2"
-              onClick={() => window.location.href = getLoginUrl()}
-            >
-              <User className="w-4 h-4" />
-              {t("nav.login")}
-            </Button>
           )}
 
           {/* Mobile menu toggle */}
@@ -265,8 +254,8 @@ export default function Navbar() {
                 </Button>
               </Link>
             )}
-            <div className="border-t border-border mt-2 pt-2">
-              {isAuthenticated ? (
+            {isAuthenticated && (
+              <div className="border-t border-border mt-2 pt-2">
                 <Button
                   variant="ghost"
                   className="w-full justify-start gap-3 text-destructive"
@@ -275,16 +264,8 @@ export default function Navbar() {
                   <LogOut className="w-4 h-4" />
                   {t("nav.logout")}
                 </Button>
-              ) : (
-                <Button
-                  className="w-full gap-2"
-                  onClick={() => window.location.href = getLoginUrl()}
-                >
-                  <User className="w-4 h-4" />
-                  {t("nav.login")}
-                </Button>
-              )}
-            </div>
+              </div>
+            )}
           </nav>
         </div>
       )}

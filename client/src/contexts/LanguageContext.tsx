@@ -151,7 +151,7 @@ const translations: Record<Language, Record<string, string>> = {
     "courses.col.q1": "去年加成後下四分位數",
     "courses.col.minReq": "最低要求",
     "courses.col.tuition": "學費",
-    "courses.col.duration": "年期",
+    "courses.col.duration": "修讀年期",
     "courses.col.scoring": "計分",
     "courses.col.admitted": "去年取錄人數",
     "courses.col.groupA": "去年組別A取錄人數",
@@ -228,7 +228,7 @@ const translations: Record<Language, Record<string, string>> = {
 
     // DSE Scores
     "dse.title": "文憑試成績",
-    "dse.subtitle": "輸入您的文憑試成績，無需登入即可使用課程搜尋功能。登入後可永久儲存至帳戶。",
+    "dse.subtitle": "輸入您的文憑試成績，系統將自動儲存至本機，無需登入即可使用課程搜尋功能。",
 
     // AI
     "ai.title": "AI 課程推薦",
@@ -401,7 +401,7 @@ const translations: Record<Language, Record<string, string>> = {
     "courses.col.q1": "去年加成后下四分位数",
     "courses.col.minReq": "最低要求",
     "courses.col.tuition": "学费",
-    "courses.col.duration": "年期",
+    "courses.col.duration": "修读年期",
     "courses.col.scoring": "计分",
     "courses.col.admitted": "去年录取人数",
     "courses.col.groupA": "去年组别A录取人数",
@@ -470,7 +470,7 @@ const translations: Record<Language, Record<string, string>> = {
     "choices.max": "已达上限（20个志愿）",
     "choices.addFromSearch": "从课程搜索加入",
     "dse.title": "文凭试成绩",
-    "dse.subtitle": "输入您的文凭试成绩，无需登录即可使用课程搜寻功能。登录后可永久保存至账户。",
+    "dse.subtitle": "输入您的文凭试成绩，系统将自动保存至本机，无需登录即可使用课程搜尋功能。",
     "ai.title": "AI 课程推荐",
     "ai.subtitle": "输入你的 DSE 成绩，AI 为你推荐最适合的课程",
     "compare.title": "课程比较",
@@ -690,7 +690,7 @@ const translations: Record<Language, Record<string, string>> = {
     "choices.max": "Maximum 20 choices reached",
     "choices.addFromSearch": "Add from Course Search",
     "dse.title": "DSE Scores",
-    "dse.subtitle": "Enter your DSE scores. They are saved locally without login. Sign in to save permanently.",
+    "dse.subtitle": "Enter your DSE scores. They are automatically saved locally without login, ready to use for course search.",
     "ai.title": "AI Course Advisor",
     "ai.subtitle": "Enter your DSE results and get personalised course recommendations",
     "compare.title": "Course Comparison",
