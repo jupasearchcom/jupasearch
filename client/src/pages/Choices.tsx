@@ -6,10 +6,9 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import {
   ListOrdered, Search, Loader2, GripVertical,
-  Trash2, ArrowUp, ArrowDown, Save, CheckCircle2, Cloud, Plus, ChevronRight,
+  Trash2, ArrowUp, ArrowDown, Save, CheckCircle2, Plus, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
-import { getLoginUrl } from "@/const";
 import { cn } from "@/lib/utils";
 import type { Course } from "../../../drizzle/schema";
 
@@ -263,22 +262,7 @@ export default function Choices() {
         </div>
       </div>
 
-      {/* Guest sync notice */}
-      {!isAuthenticated && (localChoices.length > 0 || pendingIds.length > 0) && (
-        <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground bg-secondary px-3 py-2 rounded-lg">
-          <Cloud className="w-3.5 h-3.5 shrink-0" />
-          <span>
-            {language === "en"
-              ? "Choices saved locally. Login to sync across devices."
-              : language === "zh-CN"
-              ? "志愿已保存在本地。登录以跨设备同步。"
-              : "志願已儲存於本機。登入以跨裝置同步。"}
-          </span>
-          <a href={getLoginUrl()} className="font-medium underline underline-offset-2 hover:text-foreground">
-            {t("nav.login")}
-          </a>
-        </div>
-      )}
+
 
       {/* Progress bar */}
       <div className="mb-6">
@@ -299,12 +283,7 @@ export default function Choices() {
         <h2 className="text-sm font-semibold text-foreground">
           {language === "en" ? "My Choices" : language === "zh-CN" ? "我的志愿表" : "我的志願表"}
         </h2>
-        {localChoices.length > 1 && (
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <GripVertical className="w-3.5 h-3.5" />
-            {language === "en" ? "Drag to reorder" : language === "zh-CN" ? "拖拽调整顺序" : "拖拉調整順序"}
-          </p>
-        )}
+
       </div>
 
       {localChoices.length === 0 ? (

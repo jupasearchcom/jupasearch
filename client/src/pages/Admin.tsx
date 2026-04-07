@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Course } from "../../../drizzle/schema";
 import { Link } from "wouter";
+import { getLoginUrl } from "@/const";
 
 const INSTITUTIONS = [
   "香港城市大學", "香港浸會大學", "嶺南大學", "香港中文大學",
@@ -692,6 +693,7 @@ export default function Admin() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [showAppliedLearningMgmt, setShowAppliedLearningMgmt] = useState(false);
+  const [iconClickCount, setIconClickCount] = useState(0);
   const PAGE_SIZE = 20;
 
   const { data, isLoading } = trpc.courses.list.useQuery({
@@ -712,11 +714,20 @@ export default function Admin() {
   if (!isAuthenticated || user?.role !== "admin") {
     return (
       <div className="container py-20 text-center">
-        <AlertCircle className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+        <AlertCircle
+          className="w-10 h-10 text-muted-foreground mx-auto mb-3 cursor-pointer select-none"
+          onClick={() => setIconClickCount((c) => c + 1)}
+        />
         <p className="text-muted-foreground">需要管理員權限</p>
-        <Link href="/">
-          <Button variant="ghost" size="sm" className="mt-3">返回首頁</Button>
-        </Link>
+        {iconClickCount >= 5 ? (
+          <a href={getLoginUrl()}>
+            <Button variant="outline" size="sm" className="mt-3">管理員登入</Button>
+          </a>
+        ) : (
+          <Link href="/">
+            <Button variant="ghost" size="sm" className="mt-3">返回首頁</Button>
+          </Link>
+        )}
       </div>
     );
   }

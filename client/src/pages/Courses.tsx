@@ -296,12 +296,14 @@ function CourseCard({
   onToggleFavorite,
   onAddToChoices,
   dseScores,
+  showFavorite,
 }: {
   course: Course;
   isFavorite: boolean;
   onToggleFavorite: (course: Course) => void;
   onAddToChoices: (course: Course) => void;
   dseScores: DSEScoreData | null;
+  showFavorite?: boolean;
 }) {
   const { t, language } = useLanguage();
   const { addToCompare, removeFromCompare, isInCompare } = useCompare();
@@ -459,19 +461,21 @@ function CourseCard({
             {t("courses.viewDetail")}
           </Button>
         </Link>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn("h-7 w-7", isFavorite && "text-red-500")}
-              onClick={() => onToggleFavorite(course)}
-            >
-              <Heart className={cn("w-3.5 h-3.5", isFavorite && "fill-current")} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{isFavorite ? t("courses.removeFromFavorites") : t("courses.addToFavorites")}</TooltipContent>
-        </Tooltip>
+        {showFavorite && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn("h-7 w-7", isFavorite && "text-red-500")}
+                onClick={() => onToggleFavorite(course)}
+              >
+                <Heart className={cn("w-3.5 h-3.5", isFavorite && "fill-current")} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{isFavorite ? t("courses.removeFromFavorites") : t("courses.addToFavorites")}</TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -558,7 +562,8 @@ function CheckboxGroup({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Courses() {
   const { t, language } = useLanguage();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const isAdmin = user?.role === "admin";
   // Use ref to always read the latest isAuthenticated value inside callbacks (avoids stale closure)
   const isAuthenticatedRef = useRef(isAuthenticated);
   useEffect(() => { isAuthenticatedRef.current = isAuthenticated; }, [isAuthenticated]);
@@ -1026,6 +1031,7 @@ export default function Courses() {
                     onToggleFavorite={handleToggleFavorite}
                     onAddToChoices={handleAddToChoices}
                     dseScores={dseScores}
+                    showFavorite={isAdmin}
                   />
                 ))}
               </div>
