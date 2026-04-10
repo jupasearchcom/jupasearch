@@ -308,6 +308,7 @@ function CourseFormDialog({
               <SelectContent>
                 <SelectItem value="best5">Best 5</SelectItem>
                 <SelectItem value="best6">Best 6</SelectItem>
+                <SelectItem value="best7">Best 7</SelectItem>
                 <SelectItem value="best4">Best 4</SelectItem>
                 <SelectItem value="2c3x">2C+3X</SelectItem>
               </SelectContent>
@@ -417,9 +418,56 @@ function CourseFormDialog({
             </FormField>
           </div>
 
+          {/* Elective Min Requirement */}
+          <div className="col-span-2 mt-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">選修科最低要求</h4>
+          </div>
+          <FormField label="選修科最低要求">
+            <Select
+              value={(() => {
+                try {
+                  const f = form.scoreFormulaJson ? JSON.parse(form.scoreFormulaJson) : {};
+                  return f.electiveMinReq ?? "none";
+                } catch { return "none"; }
+              })()}
+              onValueChange={(v) => {
+                try {
+                  const f = form.scoreFormulaJson ? JSON.parse(form.scoreFormulaJson) : { method: "best5", required: [], excluded: [], weighted: [], coreSubjects: [] };
+                  f.electiveMinReq = v === "none" ? null : v;
+                  set("scoreFormulaJson", JSON.stringify(f, null, 2));
+                } catch {}
+              }}
+            >
+              <SelectTrigger><SelectValue placeholder="選擇選修科最低要求" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">不設定</SelectItem>
+                <SelectItem value="33">33 — 選修科/M1/M2 中至少 2 科達 3 級</SelectItem>
+                <SelectItem value="22">22 — 選修科/M1/M2 中至少 2 科達 2 級</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+          <div className="flex items-center gap-3 mt-1">
+            <Switch
+              checked={(() => {
+                try {
+                  const f = form.scoreFormulaJson ? JSON.parse(form.scoreFormulaJson) : {};
+                  return f.excludeM1M2FromElectiveMin === true;
+                } catch { return false; }
+              })()}
+              onCheckedChange={(v) => {
+                try {
+                  const f = form.scoreFormulaJson ? JSON.parse(form.scoreFormulaJson) : { method: "best5", required: [], excluded: [], weighted: [], coreSubjects: [] };
+                  f.excludeM1M2FromElectiveMin = v;
+                  set("scoreFormulaJson", JSON.stringify(f, null, 2));
+                } catch {}
+              }}
+            />
+            <Label className="text-sm">不計入 M1/M2（選修科最低要求不計入 M1/M2）</Label>
+          </div>
+
           {/* My Score Formula */}
           <div className="col-span-2 mt-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">「我的分數」計算公式</h4>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">「我的分數」計算公式 (JSON)</h4>
             <p className="text-[10px] text-muted-foreground mb-2">輸入 JSON 格式的計分公式。必須包含 method、required、excluded、weighted、coreSubjects 五個欄位。</p>
             <Textarea
               value={form.scoreFormulaJson}
@@ -431,7 +479,8 @@ function CourseFormDialog({
             {form.scoreFormulaJson && (() => {
               try { JSON.parse(form.scoreFormulaJson); return <p className="text-[10px] text-green-500 mt-1">✓ JSON 格式正確</p>; }
               catch { return <p className="text-[10px] text-red-500 mt-1">✗ JSON 格式錯誤</p>; }
-            })()}
+            })()
+            }
           </div>
 
           {/* Scoring Scale */}

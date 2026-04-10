@@ -125,8 +125,8 @@ function computeMyScore(course: Course, dse: DSEScoreData): number | null {
 
   const method = formula.method ?? "best5";
   let total = 0;
-  if (method === "best5" || method === "best6" || method === "best4") {
-    const n = method === "best4" ? 4 : method === "best6" ? 6 : 5;
+  if (method === "best5" || method === "best6" || method === "best7" || method === "best4") {
+    const n = method === "best4" ? 4 : method === "best6" ? 6 : method === "best7" ? 7 : 5;
     const pool = [...requiredEntries, ...optionalEntries];
     pool.sort((a, b) => b.score - a.score);
     total = pool.slice(0, n).reduce((s, e) => s + e.score, 0);
@@ -192,6 +192,24 @@ function checkMeetsMinRequirement(course: Course, dse: DSEScoreData | null): boo
     }
   }
 
+  // Check electiveMinReq in scoreFormula (33 or 22)
+  if (formula?.electiveMinReq) {
+    const minGrade = formula.electiveMinReq === "33" ? "3" : "2";
+    const excludeM = formula.excludeM1M2FromElectiveMin === true;
+    // Collect all elective and M1/M2 grades
+    const electiveCandidates: string[] = [];
+    if (!excludeM) {
+      if (dse.m1 && dse.m1 !== "—") electiveCandidates.push(dse.m1);
+      if (dse.m2 && dse.m2 !== "—") electiveCandidates.push(dse.m2);
+    }
+    if (dse.elective1Subject && dse.elective1Grade && dse.elective1Grade !== "—") electiveCandidates.push(dse.elective1Grade);
+    if (dse.elective2Subject && dse.elective2Grade && dse.elective2Grade !== "—") electiveCandidates.push(dse.elective2Grade);
+    if (dse.elective3Subject && dse.elective3Grade && dse.elective3Grade !== "—") electiveCandidates.push(dse.elective3Grade);
+    if ((dse as any).elective4Subject && (dse as any).elective4Grade && (dse as any).elective4Grade !== "—") electiveCandidates.push((dse as any).elective4Grade);
+    const meetingCount = electiveCandidates.filter(g => gradeAtLeast(g, minGrade)).length;
+    if (meetingCount < 2) return false;
+  }
+
   // Check new specificSubjectRequirements (groups with OR within group, AND between groups)
   const specificReqs = (course as any).specificSubjectRequirements;
   if (specificReqs?.groups && Array.isArray(specificReqs.groups)) {
@@ -215,6 +233,26 @@ function getScoreColor(score: number, q1: number | null | undefined, median: num
   if (score < q1Val) return "red";
   if (score < medianVal) return "yellow";
   return "green";
+}
+
+/** Compute percentage deviation from last year median: (myScore - median) / median * 100 */
+function computeScorePct(myScore: number, median: number | null | undefined): number | null {
+  if (!median || Number(median) === 0) return null;
+  return (myScore - Number(median)) / Number(median) * 100;
+}
+
+/** Format percentage deviation for display, e.g. +8.70% or -3.45% */
+function formatPct(pct: number): string {
+  const sign = pct >= 0 ? "+" : "";
+  return `${sign}${pct.toFixed(2)}%`;
+}
+
+/** Return Tailwind color class for percentage deviation */
+function pctColorClass(pct: number | null): string {
+  if (pct === null) return "text-muted-foreground";
+  if (pct > 0) return "text-green-600 dark:text-green-400";
+  if (pct < 0) return "text-red-600 dark:text-red-400";
+  return "text-muted-foreground";
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -313,9 +351,10 @@ function CourseCard({
   // Check if meets minimum requirement (only when DSE scores are entered)
   const meetsMinReq = dseScores ? checkMeetsMinRequirement(course, dseScores) : null;
 
-  // My Score calculation
-  const myScore = dseScores ? computeMyScore(course, dseScores) : null;
+  // My Score calculation (only if meets min requirement)
+  const myScore = (dseScores && meetsMinReq !== false) ? computeMyScore(course, dseScores) : null;
   const scoreColor = myScore !== null ? getScoreColor(myScore, course.lastYearQ1 ? Number(course.lastYearQ1) : null, course.lastYearMedian ? Number(course.lastYearMedian) : null) : null;
+  const scorePct = myScore !== null ? computeScorePct(myScore, course.lastYearMedian ? Number(course.lastYearMedian) : null) : null;
 
   const name = language === "zh-CN" ? (course.nameZhCn || course.nameZhTw) :
     language === "en" ? (course.nameEn || course.nameZhTw) : course.nameZhTw;
@@ -424,7 +463,7 @@ function CourseCard({
       )}
 
       {/* My Score row */}
-      {dseScores && (
+      {dseScores && meetsMinReq !== false && (
         <div className={cn(
           "flex items-center justify-between px-2 py-1 rounded-md mb-2 text-xs",
           myScore === null ? "bg-muted/50 text-muted-foreground" :
@@ -436,10 +475,41 @@ function CourseCard({
           <span className="font-medium">
             {language === "en" ? "My Score" : language === "zh-CN" ? "我的分数" : "我的分數"}
           </span>
-          <span className="font-bold">
+          <span className="font-bold flex items-center gap-1">
             {myScore === null
               ? (language === "en" ? "No formula" : "未設定公式")
-              : myScore.toFixed(2)}
+              : (
+                <>
+                  {myScore.toFixed(2)}
+                  {scorePct !== null && (
+                    <span className={cn("text-[10px] font-normal", pctColorClass(scorePct))}>
+                      ({formatPct(scorePct)})
+                    </span>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help text-[10px] text-muted-foreground ml-0.5">*</span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[220px] text-xs">
+                      {language === "en"
+                        ? "Percentage deviation from last year's median: (My Score − Last Year Median) ÷ Last Year Median × 100%"
+                        : language === "zh-CN"
+                        ? "与去年加成后中位数的偏差：（我的分数 − 去年中位数）÷ 去年中位数 × 100%"
+                        : "與去年加成後中位數的偏差：（我的分數 − 去年中位數）÷ 去年中位數 × 100%"}
+                    </TooltipContent>
+                  </Tooltip>
+                </>
+              )}
+          </span>
+        </div>
+      )}
+      {dseScores && meetsMinReq === false && (
+        <div className="flex items-center justify-between px-2 py-1 rounded-md mb-2 text-xs bg-red-500/10 text-red-600 dark:text-red-400">
+          <span className="font-medium">
+            {language === "en" ? "My Score" : language === "zh-CN" ? "我的分数" : "我的分數"}
+          </span>
+          <span className="text-[10px]">
+            {language === "en" ? "Does not meet min. req." : language === "zh-CN" ? "不符合最低要求" : "不符合最低要求"}
           </span>
         </div>
       )}
@@ -648,13 +718,31 @@ export default function Courses() {
 
   const { data, isLoading } = trpc.courses.list.useQuery(queryInput);
   const rawCourses = data?.courses ?? [];
-  // Client-side filter: only show courses that meet minimum requirements
+  // Client-side filter and sort
   const courses = useMemo(() => {
-    if (!onlyMeetMinReq || !dseScores) return rawCourses;
-    return rawCourses.filter((c) => checkMeetsMinRequirement(c, dseScores));
-  }, [rawCourses, onlyMeetMinReq, dseScores]);
-  const total = onlyMeetMinReq ? courses.length : (data?.total ?? 0);
-  const totalPages = onlyMeetMinReq ? 1 : Math.ceil((data?.total ?? 0) / PAGE_SIZE);
+    let result = rawCourses;
+    // Filter: only show courses that meet minimum requirements
+    if (onlyMeetMinReq && dseScores) {
+      result = result.filter((c) => checkMeetsMinRequirement(c, dseScores));
+    }
+    // Client-side sort by probability (percentage deviation) when DSE scores are available
+    if (dseScores && (sortBy === "probability_desc" || sortBy === "probability_asc")) {
+      result = [...result].sort((a, b) => {
+        const scoreA = checkMeetsMinRequirement(a, dseScores) ? computeMyScore(a, dseScores) : null;
+        const scoreB = checkMeetsMinRequirement(b, dseScores) ? computeMyScore(b, dseScores) : null;
+        const pctA = scoreA !== null ? computeScorePct(scoreA, a.lastYearMedian ? Number(a.lastYearMedian) : null) : null;
+        const pctB = scoreB !== null ? computeScorePct(scoreB, b.lastYearMedian ? Number(b.lastYearMedian) : null) : null;
+        // Courses with no pct go to the end
+        if (pctA === null && pctB === null) return 0;
+        if (pctA === null) return 1;
+        if (pctB === null) return -1;
+        return sortBy === "probability_desc" ? pctB - pctA : pctA - pctB;
+      });
+    }
+    return result;
+  }, [rawCourses, onlyMeetMinReq, dseScores, sortBy]);
+  const total = (onlyMeetMinReq || (dseScores && (sortBy === "probability_desc" || sortBy === "probability_asc"))) ? courses.length : (data?.total ?? 0);
+  const totalPages = (onlyMeetMinReq || (dseScores && (sortBy === "probability_desc" || sortBy === "probability_asc"))) ? 1 : Math.ceil((data?.total ?? 0) / PAGE_SIZE);
 
   // Favorites — server or local
   const { data: serverFavoriteIds = [] } = trpc.favorites.ids.useQuery(undefined, { enabled: isAuthenticated });

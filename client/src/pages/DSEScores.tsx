@@ -18,8 +18,13 @@ import { Link } from "wouter";
 import { getLoginUrl } from "@/const";
 
 // DSE subject grades
-const CORE_GRADES = ["5**", "5*", "5", "4", "3", "2", "1", "U", "—"] as const;
-const CHINESE_GRADES = ["5**", "5*", "5", "4", "3", "2", "1", "U", "—"] as const;
+// Chinese & English: minimum grade 3 (no 2, 1, U)
+const CHINESE_ENGLISH_GRADES = ["5**", "5*", "5", "4", "3", "—"] as const;
+// Math, M1, M2, Electives: minimum grade 2 (no 1, U)
+const OTHER_GRADES = ["5**", "5*", "5", "4", "3", "2", "—"] as const;
+// Keep legacy names as aliases for backward compat
+const CORE_GRADES = OTHER_GRADES;
+const CHINESE_GRADES = CHINESE_ENGLISH_GRADES;
 const LIBERAL_STUDIES_GRADES = ["達標", "未達標"] as const;
 const APPLIED_LEARNING_GRADES = ["達標並表現優異（I）", "達標並表現優異（II）", "達標", "未達標"] as const;
 
@@ -362,7 +367,7 @@ export default function DSEScores() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CORE_GRADES.map((g) => (
+                  {CHINESE_ENGLISH_GRADES.map((g) => (
                     <SelectItem key={g} value={g}>{g}</SelectItem>
                   ))}
                 </SelectContent>

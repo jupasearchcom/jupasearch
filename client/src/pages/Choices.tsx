@@ -11,6 +11,77 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Course } from "../../../drizzle/schema";
+import type { DSEScoreData } from "./DSEScores";
+
+// ─── DSE helpers for Choices page ───────────────────────────────────────────
+const DSE_COOKIE_KEY_CHO = "jupasearch_dse_scores";
+function loadDseForChoices(): DSEScoreData | null {
+  try {
+    const raw = document.cookie.split("; ").find((r) => r.startsWith(DSE_COOKIE_KEY_CHO + "="));
+    if (!raw) return null;
+    const val = decodeURIComponent(raw.split("=")[1] ?? "");
+    const parsed = JSON.parse(val);
+    const hasScore = ["chinese","english","math"].some((k: string) => (parsed as Record<string,string>)[k] && (parsed as Record<string,string>)[k] !== "\u2014");
+    return hasScore ? parsed : null;
+  } catch { return null; }
+}
+function dseGradeToScoreCho(grade: string, scale?: string): number {
+  if (scale === "8.5") {
+    const map: Record<string, number> = { "5**": 8.5, "5*": 7, "5": 5.5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0, "\u2014": 0 };
+    return map[grade] ?? 0;
+  }
+  const map: Record<string, number> = { "5**": 7, "5*": 6, "5": 5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0, "\u2014": 0 };
+  return map[grade] ?? 0;
+}
+function computeMyScoreCho(course: Course, dse: DSEScoreData): number | null {
+  const formula = (course as unknown as Record<string,unknown>).scoreFormula as Record<string,unknown> | undefined;
+  if (!formula) return null;
+  const scale = (course as unknown as Record<string,string>).scoringScale;
+  const scoreMap: Record<string, number> = {};
+  scoreMap["chinese"] = dseGradeToScoreCho(dse.chinese, scale);
+  scoreMap["english"] = dseGradeToScoreCho(dse.english, scale);
+  scoreMap["math"] = dseGradeToScoreCho(dse.math, scale);
+  if (dse.m1 && dse.m1 !== "\u2014") scoreMap["m1"] = dseGradeToScoreCho(dse.m1, scale);
+  if (dse.m2 && dse.m2 !== "\u2014") scoreMap["m2"] = dseGradeToScoreCho(dse.m2, scale);
+  const electivePairs: [string|undefined, string][] = [
+    [dse.elective1Subject, dse.elective1Grade],
+    [dse.elective2Subject, dse.elective2Grade],
+    [dse.elective3Subject, dse.elective3Grade],
+    [(dse as unknown as Record<string,string>).elective4Subject, (dse as unknown as Record<string,string>).elective4Grade],
+  ];
+  electivePairs.forEach(([subj, grade]) => { if (subj) scoreMap[subj] = dseGradeToScoreCho(grade, scale); });
+  const weightedMap: Record<string, number> = { ...scoreMap };
+  const weighted = (formula.weighted as Array<{subject:string;multiplier:number}>) ?? [];
+  for (const w of weighted) {
+    if (weightedMap[w.subject] !== undefined) weightedMap[w.subject] = weightedMap[w.subject] * w.multiplier;
+  }
+  const excluded = new Set((formula.excluded as string[]) ?? []);
+  const available = Object.entries(weightedMap).filter(([k]) => !excluded.has(k)).map(([k, v]) => ({ subject: k, score: v }));
+  const required = new Set((formula.required as string[]) ?? []);
+  const requiredEntries = available.filter(e => required.has(e.subject));
+  const optionalEntries = available.filter(e => !required.has(e.subject));
+  const method = (formula.method as string) ?? "best5";
+  let total = 0;
+  if (["best4","best5","best6","best7"].includes(method)) {
+    const n = method === "best4" ? 4 : method === "best6" ? 6 : method === "best7" ? 7 : 5;
+    const pool = [...requiredEntries, ...optionalEntries];
+    pool.sort((a, b) => b.score - a.score);
+    total = pool.slice(0, n).reduce((s, e) => s + e.score, 0);
+  } else if (method === "2c3x") {
+    const coreSubjects = new Set((formula.coreSubjects as string[]) ?? ["chinese","english","math"]);
+    const coreEntries = available.filter(e => coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 2);
+    const electiveEntries = available.filter(e => !coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 3);
+    total = [...coreEntries, ...electiveEntries].reduce((s, e) => s + e.score, 0);
+  }
+  return Math.round(total * 100) / 100;
+}
+function computeScorePctCho(myScore: number, median: number | null | undefined): number | null {
+  if (!median || Number(median) === 0) return null;
+  return (myScore - Number(median)) / Number(median) * 100;
+}
+function formatPctCho(pct: number): string {
+  return (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%";
+}
 
 const LS_KEY = "jupasearch_choices";
 const LS_PENDING_KEY = "jupasearch_choices_pending";
@@ -63,6 +134,9 @@ export default function Choices() {
       toast.success(t("choices.saved"));
     },
   });
+
+  // DSE scores for percentage deviation display
+  const [dseScores] = useState<DSEScoreData | null>(() => loadDseForChoices());
 
   // Use a single source of truth: localChoices (synced from server when authenticated)
   const [localChoices, setLocalChoices] = useState<ChoiceItem[]>([]);
@@ -377,12 +451,32 @@ export default function Choices() {
 
                 {course && (
                   <div className="hidden sm:flex items-center gap-4 text-center shrink-0">
+                    {dseScores && (() => {
+                      const myScore = computeMyScoreCho(course, dseScores);
+                      const pct = myScore !== null ? computeScorePctCho(myScore, course.lastYearMedian ? Number(course.lastYearMedian) : null) : null;
+                      return (
+                        <div>
+                          <div className={cn(
+                            "text-xs font-bold",
+                            pct === null ? "text-muted-foreground" :
+                            pct > 0 ? "text-green-600 dark:text-green-400" :
+                            pct < 0 ? "text-red-600 dark:text-red-400" :
+                            "text-muted-foreground"
+                          )}>
+                            {pct !== null ? formatPctCho(pct) : "\u2014"}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {language === "en" ? "vs Median" : "\u8207\u4e2d\u4f4d\u6578"}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div>
-                      <div className="text-xs font-medium">{course.lastYearMedian ? String(course.lastYearMedian) : "—"}</div>
+                      <div className="text-xs font-medium">{course.lastYearMedian ? String(course.lastYearMedian) : "\u2014"}</div>
                       <div className="text-[10px] text-muted-foreground">{t("courses.col.median")}</div>
                     </div>
                     <div>
-                      <div className="text-xs font-medium">{course.quota ?? "—"}</div>
+                      <div className="text-xs font-medium">{course.quota ?? "\u2014"}</div>
                       <div className="text-[10px] text-muted-foreground">{t("courses.col.quota")}</div>
                     </div>
                   </div>

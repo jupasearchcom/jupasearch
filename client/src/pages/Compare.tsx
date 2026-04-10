@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useCompare } from "@/contexts/CompareContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
@@ -5,6 +6,72 @@ import { Link } from "wouter";
 import { BarChart2, Search, CheckCircle2, XCircle, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Course } from "../../../drizzle/schema";
+import type { DSEScoreData } from "./DSEScores";
+
+// ─── DSE helpers (duplicated from Courses.tsx for Compare page) ───────────────
+const DSE_COOKIE_KEY_CMP = "jupasearch_dse_scores";
+function loadDseForCompare(): DSEScoreData | null {
+  try {
+    const raw = document.cookie.split("; ").find((r) => r.startsWith(DSE_COOKIE_KEY_CMP + "="));
+    if (!raw) return null;
+    const val = decodeURIComponent(raw.split("=")[1] ?? "");
+    const parsed = JSON.parse(val);
+    const hasScore = ["chinese","english","math"].some(k => parsed[k] && parsed[k] !== "—");
+    return hasScore ? parsed : null;
+  } catch { return null; }
+}
+function dseGradeToScoreCmp(grade: string, scale?: string): number {
+  if (scale === "8.5") {
+    const map: Record<string, number> = { "5**": 8.5, "5*": 7, "5": 5.5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0, "—": 0 };
+    return map[grade] ?? 0;
+  }
+  const map: Record<string, number> = { "5**": 7, "5*": 6, "5": 5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0, "—": 0 };
+  return map[grade] ?? 0;
+}
+function computeMyScoreCmp(course: Course, dse: DSEScoreData): number | null {
+  const formula = (course as any).scoreFormula;
+  if (!formula) return null;
+  const scale = (course as any).scoringScale as string | undefined;
+  const scoreMap: Record<string, number> = {};
+  scoreMap["chinese"] = dseGradeToScoreCmp(dse.chinese, scale);
+  scoreMap["english"] = dseGradeToScoreCmp(dse.english, scale);
+  scoreMap["math"] = dseGradeToScoreCmp(dse.math, scale);
+  if (dse.m1 && dse.m1 !== "—") scoreMap["m1"] = dseGradeToScoreCmp(dse.m1, scale);
+  if (dse.m2 && dse.m2 !== "—") scoreMap["m2"] = dseGradeToScoreCmp(dse.m2, scale);
+  [[dse.elective1Subject, dse.elective1Grade],[dse.elective2Subject, dse.elective2Grade],[dse.elective3Subject, dse.elective3Grade],[(dse as any).elective4Subject, (dse as any).elective4Grade]]
+    .forEach(([subj, grade]) => { if (subj) scoreMap[subj] = dseGradeToScoreCmp(grade, scale); });
+  const weightedMap: Record<string, number> = { ...scoreMap };
+  for (const w of (formula.weighted ?? [])) {
+    if (weightedMap[w.subject] !== undefined) weightedMap[w.subject] = weightedMap[w.subject] * w.multiplier;
+  }
+  const excluded = new Set(formula.excluded ?? []);
+  const available = Object.entries(weightedMap).filter(([k]) => !excluded.has(k)).map(([k, v]) => ({ subject: k, score: v }));
+  const required = new Set(formula.required ?? []);
+  const requiredEntries = available.filter(e => required.has(e.subject));
+  const optionalEntries = available.filter(e => !required.has(e.subject));
+  const method = formula.method ?? "best5";
+  let total = 0;
+  if (method === "best5" || method === "best6" || method === "best7" || method === "best4") {
+    const n = method === "best4" ? 4 : method === "best6" ? 6 : method === "best7" ? 7 : 5;
+    const pool = [...requiredEntries, ...optionalEntries];
+    pool.sort((a, b) => b.score - a.score);
+    total = pool.slice(0, n).reduce((s, e) => s + e.score, 0);
+  } else if (method === "2c3x") {
+    const coreSubjects = new Set(formula.coreSubjects ?? ["chinese","english","math"]);
+    const coreEntries = available.filter(e => coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 2);
+    const electiveEntries = available.filter(e => !coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 3);
+    total = [...coreEntries, ...electiveEntries].reduce((s, e) => s + e.score, 0);
+  }
+  return Math.round(total * 100) / 100;
+}
+function computeScorePctCmp(myScore: number, median: number | null | undefined): number | null {
+  if (!median || Number(median) === 0) return null;
+  return (myScore - Number(median)) / Number(median) * 100;
+}
+function formatPctCmp(pct: number): string {
+  const sign = pct >= 0 ? "+" : "";
+  return `${sign}${pct.toFixed(2)}%`;
+}
 
 function CompareValue({ value }: { value: string | null | undefined }) {
   if (!value || value === "—") return <span className="text-muted-foreground">—</span>;
@@ -21,6 +88,7 @@ function BoolCell({ value }: { value: boolean | null | undefined }) {
 export default function Compare() {
   const { t, language } = useLanguage();
   const { compareList, clearCompare } = useCompare();
+  const [dseScores] = useState<DSEScoreData | null>(() => loadDseForCompare());
 
   if (compareList.length === 0) {
     return (
@@ -94,6 +162,42 @@ export default function Compare() {
               </tr>
             </thead>
             <tbody>
+              {/* Row 0: My Score % deviation (first row, only when DSE scores available) */}
+              {dseScores && (
+                <tr className="border-b border-border bg-primary/5 hover:bg-primary/10 transition-colors">
+                  <td className="px-4 py-2.5 text-xs font-semibold">
+                    {language === "en" ? "My Score vs Median" : language === "zh-CN" ? "我的分数偏差" : "我的分數偏差"}
+                    <div className="text-[10px] font-normal text-muted-foreground">
+                      {language === "en" ? "(vs last year median)" : "(與去年中位數比較)"}
+                    </div>
+                  </td>
+                  {compareList.map((course) => {
+                    const myScore = computeMyScoreCmp(course, dseScores);
+                    const pct = myScore !== null ? computeScorePctCmp(myScore, course.lastYearMedian ? Number(course.lastYearMedian) : null) : null;
+                    return (
+                      <td key={course.id} className="px-4 py-2.5 text-center">
+                        {myScore === null ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="text-sm font-bold">{myScore.toFixed(2)}</span>
+                            {pct !== null && (
+                              <span className={cn(
+                                "text-xs font-medium",
+                                pct > 0 ? "text-green-600 dark:text-green-400" :
+                                pct < 0 ? "text-red-600 dark:text-red-400" :
+                                "text-muted-foreground"
+                              )}>
+                                {formatPctCmp(pct)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              )}
               {rows.map(({ label, key, format, bool }) => (
                 <tr key={String(key)} className="border-b border-border last:border-0 hover:bg-secondary/20 transition-colors">
                   <td className="px-4 py-2.5 text-xs text-muted-foreground font-medium">{label}</td>
