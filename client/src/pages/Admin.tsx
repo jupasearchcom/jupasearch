@@ -75,6 +75,7 @@ interface CourseFormData {
   tuitionFee: string;
   scoringMethodChanged: boolean;
   isNew: boolean;
+  expectedScore: string; // 計分方式改變時的預期分數
   descriptionZhTw: string;
   careerProspectsZhTw: string;
   websiteUrl: string;
@@ -94,6 +95,7 @@ const emptyForm: CourseFormData = {
   lastYearGroupAAdmitted: "", lastYearGroupAApplicants: "", lastYearTotalApplicants: "",
   groupAOnly: false, scoreGap: "", fundingType: "", tuitionFee: "",
   scoringMethodChanged: false, isNew: false,
+  expectedScore: "",
   descriptionZhTw: "", careerProspectsZhTw: "", websiteUrl: "",
   jupasOfficialUrl: "", acceptMultipleSittings: "", flexibleAdmission: false,
   scoreFormulaJson: "", scoringScale: "",
@@ -126,6 +128,7 @@ function courseToForm(course: Course): CourseFormData {
     tuitionFee: course.tuitionFee?.toString() ?? "",
     scoringMethodChanged: course.scoringMethodChanged ?? false,
     isNew: course.isNew ?? false,
+    expectedScore: course.expectedScore?.toString() ?? "",
     descriptionZhTw: course.descriptionZhTw ?? "",
     careerProspectsZhTw: course.careerProspectsZhTw ?? "",
     websiteUrl: course.websiteUrl ?? "",
@@ -170,6 +173,7 @@ function formToInput(form: CourseFormData) {
     tuitionFee: form.tuitionFee ? parseInt(form.tuitionFee) : undefined,
     scoringMethodChanged: form.scoringMethodChanged,
     isNew: form.isNew,
+    expectedScore: form.expectedScore ? parseFloat(form.expectedScore) : undefined,
     descriptionZhTw: form.descriptionZhTw || undefined,
     careerProspectsZhTw: form.careerProspectsZhTw || undefined,
     websiteUrl: form.websiteUrl || undefined,
@@ -202,6 +206,13 @@ function CourseFormDialog({
 }) {
   const { t } = useLanguage();
   const [form, setForm] = useState<CourseFormData>(editCourse ? courseToForm(editCourse) : emptyForm);
+
+  // Re-initialize form whenever the dialog opens or editCourse changes
+  useEffect(() => {
+    if (open) {
+      setForm(editCourse ? courseToForm(editCourse) : emptyForm);
+    }
+  }, [open, editCourse]);
 
   const createMutation = trpc.courses.create.useMutation({ onSuccess: () => { onSuccess(); onClose(); toast.success("課程已新增"); } });
   const updateMutation = trpc.courses.update.useMutation({ onSuccess: () => { onSuccess(); onClose(); toast.success("課程已更新"); } });
@@ -384,6 +395,18 @@ function CourseFormDialog({
             <Switch checked={form.scoringMethodChanged} onCheckedChange={(v) => set("scoringMethodChanged", v)} />
             <Label className="text-sm">計分方式已改變</Label>
           </div>
+          {form.scoringMethodChanged && (
+            <FormField label="Expected Score（預期分數，取代中位數/Q1）">
+              <Input
+                type="number"
+                step="0.01"
+                value={form.expectedScore}
+                onChange={(e) => set("expectedScore", e.target.value)}
+                placeholder="例：23.50"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">勾選「計分方式已改變」後，前端將顯示此分數取代中位數和Q1兩格</p>
+            </FormField>
+          )}
           <div className="flex items-center gap-3">
             <Switch checked={form.isNew} onCheckedChange={(v) => set("isNew", v)} />
             <Label className="text-sm">新課程</Label>

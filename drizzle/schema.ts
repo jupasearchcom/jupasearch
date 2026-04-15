@@ -58,6 +58,7 @@ export const courses = mysqlTable("courses", {
   quota: int("quota"), // 收生人數
   lastYearMedian: decimal("lastYearMedian", { precision: 6, scale: 2 }), // 去年中位數/平均數
   lastYearQ1: decimal("lastYearQ1", { precision: 6, scale: 2 }), // 去年下四分位數
+  expectedScore: decimal("expectedScore", { precision: 6, scale: 2 }), // 計分方式改變時的預期分數（取代中位數/Q1）
   lastYearAdmitted: int("lastYearAdmitted"), // 去年取錄人數
   lastYearGroupAAdmitted: int("lastYearGroupAAdmitted"), // 去年組別A取錄人數
   lastYearGroupAApplicants: int("lastYearGroupAApplicants"), // 去年組別A申請人數

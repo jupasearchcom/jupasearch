@@ -440,6 +440,12 @@ export default function DSEScores() {
             {([1, 2, 3, 4] as const).map((n) => {
               const subjectKey = `elective${n}Subject` as keyof DSEScoreData;
               const gradeKey = `elective${n}Grade` as keyof DSEScoreData;
+              // Collect subjects selected in OTHER slots (to prevent duplicate selection)
+              const otherSelected = ([1, 2, 3, 4] as const)
+                .filter((m) => m !== n)
+                .map((m) => scores[`elective${m}Subject` as keyof DSEScoreData])
+                .filter((s) => s && s !== "none" && s !== "");
+              const availableElectives = electives.filter((s) => !otherSelected.includes(s));
               return (
                 <div key={n} className="flex items-center gap-3">
                   <Label className="w-12 text-sm flex-shrink-0 text-muted-foreground">#{n}</Label>
@@ -449,7 +455,7 @@ export default function DSEScores() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">—</SelectItem>
-                      {electives.map((s) => (
+                      {availableElectives.map((s) => (
                         <SelectItem key={s} value={s}>{s}</SelectItem>
                       ))}
                     </SelectContent>

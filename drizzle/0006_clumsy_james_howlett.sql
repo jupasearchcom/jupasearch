@@ -1,0 +1,1 @@
+ALTER TABLE `courses` ADD `expectedScore` decimal(6,2);

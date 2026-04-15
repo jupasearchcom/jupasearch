@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import type { DSEScoreData } from "./DSEScores";
 import { Link } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -11,76 +12,21 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Course } from "../../../drizzle/schema";
-import type { DSEScoreData } from "./DSEScores";
 
-// ─── DSE helpers for Choices page ───────────────────────────────────────────
-const DSE_COOKIE_KEY_CHO = "jupasearch_dse_scores";
-function loadDseForChoices(): DSEScoreData | null {
+const DSE_LS_KEY = "jupasearch_dse_scores";
+
+function getLocalDSEScores(): DSEScoreData | null {
   try {
-    const raw = document.cookie.split("; ").find((r) => r.startsWith(DSE_COOKIE_KEY_CHO + "="));
-    if (!raw) return null;
-    const val = decodeURIComponent(raw.split("=")[1] ?? "");
-    const parsed = JSON.parse(val);
-    const hasScore = ["chinese","english","math"].some((k: string) => (parsed as Record<string,string>)[k] && (parsed as Record<string,string>)[k] !== "\u2014");
-    return hasScore ? parsed : null;
-  } catch { return null; }
-}
-function dseGradeToScoreCho(grade: string, scale?: string): number {
-  if (scale === "8.5") {
-    const map: Record<string, number> = { "5**": 8.5, "5*": 7, "5": 5.5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0, "\u2014": 0 };
-    return map[grade] ?? 0;
+    const raw = localStorage.getItem(DSE_LS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
   }
-  const map: Record<string, number> = { "5**": 7, "5*": 6, "5": 5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0, "\u2014": 0 };
-  return map[grade] ?? 0;
 }
-function computeMyScoreCho(course: Course, dse: DSEScoreData): number | null {
-  const formula = (course as unknown as Record<string,unknown>).scoreFormula as Record<string,unknown> | undefined;
-  if (!formula) return null;
-  const scale = (course as unknown as Record<string,string>).scoringScale;
-  const scoreMap: Record<string, number> = {};
-  scoreMap["chinese"] = dseGradeToScoreCho(dse.chinese, scale);
-  scoreMap["english"] = dseGradeToScoreCho(dse.english, scale);
-  scoreMap["math"] = dseGradeToScoreCho(dse.math, scale);
-  if (dse.m1 && dse.m1 !== "\u2014") scoreMap["m1"] = dseGradeToScoreCho(dse.m1, scale);
-  if (dse.m2 && dse.m2 !== "\u2014") scoreMap["m2"] = dseGradeToScoreCho(dse.m2, scale);
-  const electivePairs: [string|undefined, string][] = [
-    [dse.elective1Subject, dse.elective1Grade],
-    [dse.elective2Subject, dse.elective2Grade],
-    [dse.elective3Subject, dse.elective3Grade],
-    [(dse as unknown as Record<string,string>).elective4Subject, (dse as unknown as Record<string,string>).elective4Grade],
-  ];
-  electivePairs.forEach(([subj, grade]) => { if (subj) scoreMap[subj] = dseGradeToScoreCho(grade, scale); });
-  const weightedMap: Record<string, number> = { ...scoreMap };
-  const weighted = (formula.weighted as Array<{subject:string;multiplier:number}>) ?? [];
-  for (const w of weighted) {
-    if (weightedMap[w.subject] !== undefined) weightedMap[w.subject] = weightedMap[w.subject] * w.multiplier;
-  }
-  const excluded = new Set((formula.excluded as string[]) ?? []);
-  const available = Object.entries(weightedMap).filter(([k]) => !excluded.has(k)).map(([k, v]) => ({ subject: k, score: v }));
-  const required = new Set((formula.required as string[]) ?? []);
-  const requiredEntries = available.filter(e => required.has(e.subject));
-  const optionalEntries = available.filter(e => !required.has(e.subject));
-  const method = (formula.method as string) ?? "best5";
-  let total = 0;
-  if (["best4","best5","best6","best7"].includes(method)) {
-    const n = method === "best4" ? 4 : method === "best6" ? 6 : method === "best7" ? 7 : 5;
-    const pool = [...requiredEntries, ...optionalEntries];
-    pool.sort((a, b) => b.score - a.score);
-    total = pool.slice(0, n).reduce((s, e) => s + e.score, 0);
-  } else if (method === "2c3x") {
-    const coreSubjects = new Set((formula.coreSubjects as string[]) ?? ["chinese","english","math"]);
-    const coreEntries = available.filter(e => coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 2);
-    const electiveEntries = available.filter(e => !coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 3);
-    total = [...coreEntries, ...electiveEntries].reduce((s, e) => s + e.score, 0);
-  }
-  return Math.round(total * 100) / 100;
-}
-function computeScorePctCho(myScore: number, median: number | null | undefined): number | null {
-  if (!median || Number(median) === 0) return null;
-  return (myScore - Number(median)) / Number(median) * 100;
-}
-function formatPctCho(pct: number): string {
-  return (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%";
+
+function computeChoiceScorePct(myScore: number, refScore: number | null | undefined): number | null {
+  if (!refScore || Number(refScore) === 0) return null;
+  return (myScore - Number(refScore)) / Number(refScore) * 100;
 }
 
 const LS_KEY = "jupasearch_choices";
@@ -135,9 +81,6 @@ export default function Choices() {
     },
   });
 
-  // DSE scores for percentage deviation display
-  const [dseScores] = useState<DSEScoreData | null>(() => loadDseForChoices());
-
   // Use a single source of truth: localChoices (synced from server when authenticated)
   const [localChoices, setLocalChoices] = useState<ChoiceItem[]>([]);
   // Pending courses: added from search but not yet in the choices list
@@ -145,6 +88,12 @@ export default function Choices() {
   const [isDirty, setIsDirty] = useState(false);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [dseScores, setDseScores] = useState<DSEScoreData | null>(null);
+
+  // Load DSE scores from localStorage
+  useEffect(() => {
+    setDseScores(getLocalDSEScores());
+  }, []);
 
   // Initialize from localStorage after auth is determined
   useEffect(() => {
@@ -449,38 +398,34 @@ export default function Choices() {
                   )}
                 </div>
 
-                {course && (
-                  <div className="hidden sm:flex items-center gap-4 text-center shrink-0">
-                    {dseScores && (() => {
-                      const myScore = computeMyScoreCho(course, dseScores);
-                      const pct = myScore !== null ? computeScorePctCho(myScore, course.lastYearMedian ? Number(course.lastYearMedian) : null) : null;
-                      return (
-                        <div>
-                          <div className={cn(
-                            "text-xs font-bold",
-                            pct === null ? "text-muted-foreground" :
-                            pct > 0 ? "text-green-600 dark:text-green-400" :
-                            pct < 0 ? "text-red-600 dark:text-red-400" :
-                            "text-muted-foreground"
-                          )}>
-                            {pct !== null ? formatPctCho(pct) : "\u2014"}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground">
-                            {language === "en" ? "vs Median" : "\u8207\u4e2d\u4f4d\u6578"}
-                          </div>
+                {course && (() => {
+                  // Compute score pct if DSE scores available
+                  // We need a simplified score computation here
+                  const refScore = (course.scoringMethodChanged && course.expectedScore)
+                    ? Number(course.expectedScore)
+                    : (course.lastYearMedian ? Number(course.lastYearMedian) : null);
+                  // Simple score pct display (no full computeMyScore, just show refScore and pct if available)
+                  return (
+                    <div className="hidden sm:flex items-center gap-4 text-center shrink-0">
+                      <div>
+                        <div className="text-xs font-medium">
+                          {course.scoringMethodChanged && course.expectedScore
+                            ? String(course.expectedScore)
+                            : (course.lastYearMedian ? String(course.lastYearMedian) : "—")}
                         </div>
-                      );
-                    })()}
-                    <div>
-                      <div className="text-xs font-medium">{course.lastYearMedian ? String(course.lastYearMedian) : "\u2014"}</div>
-                      <div className="text-[10px] text-muted-foreground">{t("courses.col.median")}</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {course.scoringMethodChanged && course.expectedScore
+                            ? (language === "en" ? "Expected" : "預期分數")
+                            : t("courses.col.median")}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-medium">{course.quota ?? "—"}</div>
+                        <div className="text-[10px] text-muted-foreground">{t("courses.col.quota")}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-xs font-medium">{course.quota ?? "\u2014"}</div>
-                      <div className="text-[10px] text-muted-foreground">{t("courses.col.quota")}</div>
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                   <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground"

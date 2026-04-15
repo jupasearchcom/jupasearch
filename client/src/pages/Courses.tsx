@@ -354,7 +354,11 @@ function CourseCard({
   // My Score calculation (only if meets min requirement)
   const myScore = (dseScores && meetsMinReq !== false) ? computeMyScore(course, dseScores) : null;
   const scoreColor = myScore !== null ? getScoreColor(myScore, course.lastYearQ1 ? Number(course.lastYearQ1) : null, course.lastYearMedian ? Number(course.lastYearMedian) : null) : null;
-  const scorePct = myScore !== null ? computeScorePct(myScore, course.lastYearMedian ? Number(course.lastYearMedian) : null) : null;
+  // Use expectedScore as reference if scoringMethodChanged and expectedScore exists, else use lastYearMedian
+  const referenceScore = (course.scoringMethodChanged && course.expectedScore)
+    ? Number(course.expectedScore)
+    : (course.lastYearMedian ? Number(course.lastYearMedian) : null);
+  const scorePct = myScore !== null ? computeScorePct(myScore, referenceScore) : null;
 
   const name = language === "zh-CN" ? (course.nameZhCn || course.nameZhTw) :
     language === "en" ? (course.nameEn || course.nameZhTw) : course.nameZhTw;
@@ -425,11 +429,21 @@ function CourseCard({
 
       {/* Stats grid — 3 rows x 3 cols */}
       {/* Row 1: 收生人數 / 去年加成後中位數 / 去年加成後下四分位數 */}
-      <div className="grid grid-cols-3 gap-2 mb-1">
-        <StatCell label={t("courses.col.quota")} value={course.quota?.toString() ?? "—"} />
-        <StatCell label={t("courses.col.median")} value={formatScore(course.lastYearMedian)} />
-        <StatCell label={t("courses.col.q1")} value={formatScore(course.lastYearQ1)} />
-      </div>
+      {course.scoringMethodChanged && course.expectedScore ? (
+        <div className="grid grid-cols-2 gap-2 mb-1">
+          <StatCell label={t("courses.col.quota")} value={course.quota?.toString() ?? "—"} />
+          <StatCell
+            label={language === "en" ? "Expected Score" : language === "zh-CN" ? "预期分数" : "預期分數"}
+            value={formatScore(course.expectedScore)}
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2 mb-1">
+          <StatCell label={t("courses.col.quota")} value={course.quota?.toString() ?? "—"} />
+          <StatCell label={t("courses.col.median")} value={formatScore(course.lastYearMedian)} />
+          <StatCell label={t("courses.col.q1")} value={formatScore(course.lastYearQ1)} />
+        </div>
+      )}
       {/* Toggle button */}
       <button
         onClick={() => setShowDetails(prev => !prev)}
@@ -730,8 +744,10 @@ export default function Courses() {
       result = [...result].sort((a, b) => {
         const scoreA = checkMeetsMinRequirement(a, dseScores) ? computeMyScore(a, dseScores) : null;
         const scoreB = checkMeetsMinRequirement(b, dseScores) ? computeMyScore(b, dseScores) : null;
-        const pctA = scoreA !== null ? computeScorePct(scoreA, a.lastYearMedian ? Number(a.lastYearMedian) : null) : null;
-        const pctB = scoreB !== null ? computeScorePct(scoreB, b.lastYearMedian ? Number(b.lastYearMedian) : null) : null;
+        const refA = (a.scoringMethodChanged && a.expectedScore) ? Number(a.expectedScore) : (a.lastYearMedian ? Number(a.lastYearMedian) : null);
+        const refB = (b.scoringMethodChanged && b.expectedScore) ? Number(b.expectedScore) : (b.lastYearMedian ? Number(b.lastYearMedian) : null);
+        const pctA = scoreA !== null ? computeScorePct(scoreA, refA) : null;
+        const pctB = scoreB !== null ? computeScorePct(scoreB, refB) : null;
         // Courses with no pct go to the end
         if (pctA === null && pctB === null) return 0;
         if (pctA === null) return 1;

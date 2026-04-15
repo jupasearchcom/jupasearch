@@ -173,7 +173,10 @@ export default function Compare() {
                   </td>
                   {compareList.map((course) => {
                     const myScore = computeMyScoreCmp(course, dseScores);
-                    const pct = myScore !== null ? computeScorePctCmp(myScore, course.lastYearMedian ? Number(course.lastYearMedian) : null) : null;
+                    const refScore = (course.scoringMethodChanged && course.expectedScore)
+                      ? Number(course.expectedScore)
+                      : (course.lastYearMedian ? Number(course.lastYearMedian) : null);
+                    const pct = myScore !== null ? computeScorePctCmp(myScore, refScore) : null;
                     return (
                       <td key={course.id} className="px-4 py-2.5 text-center">
                         {myScore === null ? (

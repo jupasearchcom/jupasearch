@@ -54,6 +54,7 @@ const courseInputSchema = z.object({
   quota: z.number().int().optional(),
   lastYearMedian: z.number().optional(),
   lastYearQ1: z.number().optional(),
+  expectedScore: z.number().optional(),
   lastYearAdmitted: z.number().int().optional(),
   lastYearGroupAAdmitted: z.number().int().optional(),
   lastYearGroupAApplicants: z.number().int().optional(),
@@ -84,6 +85,9 @@ const courseInputSchema = z.object({
     excluded: z.array(z.string()),
     weighted: z.array(z.object({ subject: z.string(), multiplier: z.number() })),
     coreSubjects: z.array(z.string()),
+    minSubjectRequirements: z.array(z.object({ subject: z.string(), minGrade: z.string() })).optional(),
+    electiveMinReq: z.enum(["33", "22"]).nullable().optional(),
+    excludeM1M2FromElectiveMin: z.boolean().optional(),
   }).optional(),
   scoringScale: z.enum(["8.5", "7"]).optional(),
   specificSubjectRequirements: z.object({

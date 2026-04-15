@@ -43,6 +43,13 @@
       "when": 1774973453874,
       "tag": "0005_colossal_the_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1775925294056,
+      "tag": "0006_clumsy_james_howlett",
+      "breakpoints": true
     }
   ]
 }
