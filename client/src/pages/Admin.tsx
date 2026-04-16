@@ -321,7 +321,7 @@ function CourseFormDialog({
                 <SelectItem value="best6">Best 6</SelectItem>
                 <SelectItem value="best7">Best 7</SelectItem>
                 <SelectItem value="best4">Best 4</SelectItem>
-                <SelectItem value="2c3x">2C+3X</SelectItem>
+                <SelectItem value="3c2x">3C+2X</SelectItem>
               </SelectContent>
             </Select>
           </FormField>
@@ -491,12 +491,15 @@ function CourseFormDialog({
           {/* My Score Formula */}
           <div className="col-span-2 mt-2">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">「我的分數」計算公式 (JSON)</h4>
-            <p className="text-[10px] text-muted-foreground mb-2">輸入 JSON 格式的計分公式。必須包含 method、required、excluded、weighted、coreSubjects 五個欄位。</p>
+            <p className="text-[10px] text-muted-foreground mb-2">
+              必須欄位：<code className="bg-muted px-1 rounded">method</code>、<code className="bg-muted px-1 rounded">required</code>、<code className="bg-muted px-1 rounded">excluded</code>、<code className="bg-muted px-1 rounded">weighted</code>、<code className="bg-muted px-1 rounded">coreSubjects</code><br/>
+              進階欄位：<code className="bg-muted px-1 rounded">weightedBestOf</code>、<code className="bg-muted px-1 rounded">js4501Special</code>、<code className="bg-muted px-1 rounded">excludeLv2</code>、<code className="bg-muted px-1 rounded">bonusSubject</code>
+            </p>
             <Textarea
               value={form.scoreFormulaJson}
               onChange={(e) => set("scoreFormulaJson", e.target.value)}
-              rows={5}
-              placeholder='{"method":"best5","required":["chinese","english"],"excluded":[],"weighted":[],"coreSubjects":[]}'
+              rows={7}
+              placeholder='{"method":"best5","required":["chinese","english"],"excluded":[],"weighted":[{"subject":"math","multiplier":2}],"coreSubjects":[]}'
               className="font-mono text-xs"
             />
             {form.scoreFormulaJson && (() => {
@@ -504,6 +507,39 @@ function CourseFormDialog({
               catch { return <p className="text-[10px] text-red-500 mt-1">✗ JSON 格式錯誤</p>; }
             })()
             }
+          </div>
+
+          {/* Advanced Scoring Toggles */}
+          <div className="col-span-2 space-y-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">進階計分選項</h4>
+            <div className="flex items-center gap-3">
+              <Switch
+                checked={(() => { try { return JSON.parse(form.scoreFormulaJson || '{}').js4501Special === true; } catch { return false; } })()
+                }
+                onCheckedChange={(v) => {
+                  try {
+                    const f = form.scoreFormulaJson ? JSON.parse(form.scoreFormulaJson) : { method: "best6", required: [], excluded: [], weighted: [], coreSubjects: [] };
+                    f.js4501Special = v;
+                    set("scoreFormulaJson", JSON.stringify(f, null, 2));
+                  } catch {}
+                }}
+              />
+              <Label className="text-sm">JS4501/JS4502 特殊條件（M1/M2 不計分，但若 Best-N 最後一科比 M1/M2 低，則用 0.5×最後一科 + 0.5×M1/M2 代替）</Label>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch
+                checked={(() => { try { return JSON.parse(form.scoreFormulaJson || '{}').excludeLv2 === true; } catch { return false; } })()
+                }
+                onCheckedChange={(v) => {
+                  try {
+                    const f = form.scoreFormulaJson ? JSON.parse(form.scoreFormulaJson) : { method: "best5", required: [], excluded: [], weighted: [], coreSubjects: [] };
+                    f.excludeLv2 = v;
+                    set("scoreFormulaJson", JSON.stringify(f, null, 2));
+                  } catch {}
+                }}
+              />
+              <Label className="text-sm">強制排除 Lv2 科目（香港大學/科大/理工自動排除，其他學校可手動勾選）</Label>
+            </div>
           </div>
 
           {/* Scoring Scale */}

@@ -83,59 +83,144 @@ function dseGradeToScore(grade: string, scale?: string): number {
   return map[grade] ?? 0;
 }
 
+// Institutions where Lv2 subjects are excluded from scoring
+const LV2_EXCLUDE_INSTITUTIONS = ["香港大學", "香港科技大學", "香港理工大學"];
+
 function computeMyScore(course: Course, dse: DSEScoreData): number | null {
   const formula = (course as any).scoreFormula;
   if (!formula) return null;
   const scale = (course as any).scoringScale as string | undefined;
 
-  // Build score map
-  const scoreMap: Record<string, number> = {};
-  scoreMap["chinese"] = dseGradeToScore(dse.chinese, scale);
-  scoreMap["english"] = dseGradeToScore(dse.english, scale);
-  scoreMap["math"] = dseGradeToScore(dse.math, scale);
-  // M1 / M2 (Math Extended)
-  if (dse.m1 && dse.m1 !== "—") scoreMap["m1"] = dseGradeToScore(dse.m1, scale);
-  if (dse.m2 && dse.m2 !== "—") scoreMap["m2"] = dseGradeToScore(dse.m2, scale);
-  // Electives (including 4th elective)
-  [[dse.elective1Subject, dse.elective1Grade],[dse.elective2Subject, dse.elective2Grade],[dse.elective3Subject, dse.elective3Grade],[(dse as any).elective4Subject, (dse as any).elective4Grade]]
-    .forEach(([subj, grade]) => { if (subj) scoreMap[subj] = dseGradeToScore(grade, scale); });
-  // Applied Learning
+  // ── Step 1: Build raw score map ──────────────────────────────────────────────
+  const rawMap: Record<string, number> = {};
+  rawMap["chinese"] = dseGradeToScore(dse.chinese, scale);
+  rawMap["english"] = dseGradeToScore(dse.english, scale);
+  rawMap["math"] = dseGradeToScore(dse.math, scale);
+  if (dse.m1 && dse.m1 !== "—") rawMap["m1"] = dseGradeToScore(dse.m1, scale);
+  if (dse.m2 && dse.m2 !== "—") rawMap["m2"] = dseGradeToScore(dse.m2, scale);
+  [[dse.elective1Subject, dse.elective1Grade],[dse.elective2Subject, dse.elective2Grade],
+   [dse.elective3Subject, dse.elective3Grade],[(dse as any).elective4Subject, (dse as any).elective4Grade]]
+    .forEach(([subj, grade]) => { if (subj) rawMap[subj] = dseGradeToScore(grade, scale); });
   if (dse.appliedLearningSubject) {
     const alMap: Record<string, number> = { "達標並表現優異（I）": 3, "達標並表現優異（II）": 4, "達標": 2, "未達標": 0 };
-    scoreMap[dse.appliedLearningSubject] = alMap[dse.appliedLearningGrade] ?? 0;
+    rawMap[dse.appliedLearningSubject] = alMap[dse.appliedLearningGrade] ?? 0;
   }
-  // Other language
   if (dse.otherLanguage) {
     const olMap: Record<string, number> = { C2: 5, C1: 4, B2: 3, B1: 2, A2: 1, N1: 5, N2: 4, N3: 3, "第 6 級": 5, "第 5 級": 4, "第 4 級": 3, "第 3 級": 2, "A++": 5, "A+": 5, "A": 4, "B++": 4, "B+": 3, "B": 3, "C": 2, "D": 1, "E": 1 };
-    scoreMap[dse.otherLanguage] = olMap[dse.otherLanguageGrade] ?? 0;
+    rawMap[dse.otherLanguage] = olMap[dse.otherLanguageGrade] ?? 0;
   }
 
-  // Apply weightings
+  // ── Step 2: HKU / UST / PolyU — exclude Lv2 subjects (score ≤ 2 = 0) ────────
+  // Triggered by formula.excludeLv2 OR if course institution is in LV2_EXCLUDE_INSTITUTIONS
+  const shouldExcludeLv2 = formula.excludeLv2 === true ||
+    LV2_EXCLUDE_INSTITUTIONS.includes((course as any).institution ?? "");
+  const scoreMap: Record<string, number> = {};
+  for (const [k, v] of Object.entries(rawMap)) {
+    // For Lv2-exclude schools, subjects with raw DSE score ≤ 2 (i.e., grade 2 or below) count as 0
+    // We check the raw (pre-scale) grade to determine this
+    const rawGrade = (() => {
+      if (k === "chinese") return dse.chinese;
+      if (k === "english") return dse.english;
+      if (k === "math") return dse.math;
+      if (k === "m1") return dse.m1;
+      if (k === "m2") return dse.m2;
+      const pairs = [[dse.elective1Subject, dse.elective1Grade],[dse.elective2Subject, dse.elective2Grade],
+        [dse.elective3Subject, dse.elective3Grade],[(dse as any).elective4Subject, (dse as any).elective4Grade]];
+      const found = pairs.find(([s]) => s === k);
+      return found ? found[1] : null;
+    })();
+    const isLv2OrBelow = rawGrade && ["1", "2", "U"].includes(rawGrade);
+    scoreMap[k] = (shouldExcludeLv2 && isLv2OrBelow) ? 0 : v;
+  }
+
+  // ── Step 3: Apply weightings ─────────────────────────────────────────────────
+  // formula.weighted: [{ subject, multiplier }]
+  // Note: some courses only allow the better of two subjects to have weighting
+  // formula.weightedBestOf: [{ subjects: string[], multiplier: number }] — only best subject gets multiplier
   const weightedMap: Record<string, number> = { ...scoreMap };
   for (const w of (formula.weighted ?? [])) {
     if (weightedMap[w.subject] !== undefined) weightedMap[w.subject] = weightedMap[w.subject] * w.multiplier;
   }
+  // Best-of weighting: only the highest-scoring subject in the group gets the multiplier
+  for (const w of (formula.weightedBestOf ?? [])) {
+    const candidates = (w.subjects as string[]).filter(s => weightedMap[s] !== undefined);
+    if (candidates.length === 0) continue;
+    const best = candidates.reduce((a, b) => (weightedMap[a] >= weightedMap[b] ? a : b));
+    // Apply multiplier only to best; others keep original score
+    weightedMap[best] = weightedMap[best] * w.multiplier;
+  }
 
+  // ── Step 4: Build available pool (excluded subjects removed) ─────────────────
   const excluded = new Set(formula.excluded ?? []);
-  const available = Object.entries(weightedMap).filter(([k]) => !excluded.has(k)).map(([k, v]) => ({ subject: k, score: v }));
+  // JS4501/JS4502 special: M1/M2 excluded from main pool by default
+  const js4501Special = formula.js4501Special === true;
+  if (js4501Special) {
+    excluded.add("m1");
+    excluded.add("m2");
+  }
+  const available = Object.entries(weightedMap)
+    .filter(([k]) => !excluded.has(k))
+    .map(([k, v]) => ({ subject: k, score: v }));
+
   const required = new Set(formula.required ?? []);
   const requiredEntries = available.filter(e => required.has(e.subject));
   const optionalEntries = available.filter(e => !required.has(e.subject));
   optionalEntries.sort((a, b) => b.score - a.score);
 
+  // ── Step 5: Best N / 3C+2X selection ─────────────────────────────────────────
   const method = formula.method ?? "best5";
-  let total = 0;
+  let selectedEntries: Array<{ subject: string; score: number }> = [];
+
   if (method === "best5" || method === "best6" || method === "best7" || method === "best4") {
     const n = method === "best4" ? 4 : method === "best6" ? 6 : method === "best7" ? 7 : 5;
     const pool = [...requiredEntries, ...optionalEntries];
     pool.sort((a, b) => b.score - a.score);
-    total = pool.slice(0, n).reduce((s, e) => s + e.score, 0);
-  } else if (method === "2c3x") {
+    selectedEntries = pool.slice(0, n);
+
+    // JS4501/JS4502 special: if Best-N slot is worse than M1/M2, replace with 0.5×slot + 0.5×M1M2
+    if (js4501Special && selectedEntries.length === n) {
+      const m1Score = weightedMap["m1"] ?? 0;
+      const m2Score = weightedMap["m2"] ?? 0;
+      const bestMathExt = Math.max(m1Score, m2Score);
+      if (bestMathExt > 0) {
+        const lastEntry = selectedEntries[n - 1];
+        if (bestMathExt > lastEntry.score) {
+          // Replace last slot with 0.5×last + 0.5×mathExt
+          selectedEntries[n - 1] = { subject: "m1m2_blend", score: lastEntry.score * 0.5 + bestMathExt * 0.5 };
+        }
+      }
+    }
+  } else if (method === "3c2x") {
+    // 3C+2X: Chinese + English + Math (3 core) + best 2 electives/M1/M2
     const coreSubjects = new Set(formula.coreSubjects ?? ["chinese", "english", "math"]);
-    const coreEntries = available.filter(e => coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 2);
-    const electiveEntries = available.filter(e => !coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 3);
-    total = [...coreEntries, ...electiveEntries].reduce((s, e) => s + e.score, 0);
+    const coreEntries = available.filter(e => coreSubjects.has(e.subject));
+    const electiveEntries = available.filter(e => !coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 2);
+    selectedEntries = [...coreEntries, ...electiveEntries];
   }
+
+  let total = selectedEntries.reduce((s, e) => s + e.score, 0);
+
+  // ── Step 6: Bonus subject (extra weighting for N+1 subject) ──────────────────
+  // formula.bonusSubject: { multiplier: number, subject?: string }
+  // If subject specified: that subject × multiplier added as bonus
+  // If no subject: the next best subject after selected pool × multiplier added
+  if (formula.bonusSubject) {
+    const bonus = formula.bonusSubject;
+    const selectedSubjects = new Set(selectedEntries.map(e => e.subject));
+    let bonusScore = 0;
+    if (bonus.subject) {
+      // Specific subject as bonus
+      bonusScore = (weightedMap[bonus.subject] ?? 0) * bonus.multiplier;
+    } else {
+      // Next best subject not already in selected pool
+      const remaining = available
+        .filter(e => !selectedSubjects.has(e.subject))
+        .sort((a, b) => b.score - a.score);
+      if (remaining.length > 0) bonusScore = remaining[0].score * bonus.multiplier;
+    }
+    total += bonusScore;
+  }
+
   return Math.round(total * 100) / 100;
 }
 
@@ -296,7 +381,7 @@ const DEGREE_TYPES_MAP: Record<string, { zhTw: string; zhCn: string; en: string 
 };
 const DEGREE_TYPES = Object.keys(DEGREE_TYPES_MAP);
 
-const SCORING_METHODS = ["best5", "best6", "best4", "2c3x"];
+const SCORING_METHODS = ["best5", "best6", "best4", "3c2x"];
 const SCORE_GAPS = ["above_median", "above_q1", "below_q1", "between_median_q1"];
 // Removed self_financed per user request
 const FUNDING_TYPES = ["ugc", "nmtss", "sssdp"];
@@ -920,7 +1005,7 @@ export default function Courses() {
           options={SCORING_METHODS}
           selected={scoringMethods}
           onChange={(v) => { setScoringMethods(v); setPage(1); }}
-          labelFn={(v) => v === "best5" ? "Best 5" : v === "best6" ? "Best 6" : v === "best4" ? "Best 4" : "2C+3X"}
+          labelFn={(v) => v === "best5" ? "Best 5" : v === "best6" ? "Best 6" : v === "best4" ? "Best 4" : "3C+2X"}
         />
       </FilterSection>
       <Separator />

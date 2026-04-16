@@ -28,40 +28,116 @@ function dseGradeToScoreCmp(grade: string, scale?: string): number {
   const map: Record<string, number> = { "5**": 7, "5*": 6, "5": 5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0, "—": 0 };
   return map[grade] ?? 0;
 }
+const LV2_EXCLUDE_INSTITUTIONS_CMP = ["香港大學", "香港科技大學", "香港理工大學"];
 function computeMyScoreCmp(course: Course, dse: DSEScoreData): number | null {
   const formula = (course as any).scoreFormula;
   if (!formula) return null;
   const scale = (course as any).scoringScale as string | undefined;
-  const scoreMap: Record<string, number> = {};
-  scoreMap["chinese"] = dseGradeToScoreCmp(dse.chinese, scale);
-  scoreMap["english"] = dseGradeToScoreCmp(dse.english, scale);
-  scoreMap["math"] = dseGradeToScoreCmp(dse.math, scale);
-  if (dse.m1 && dse.m1 !== "—") scoreMap["m1"] = dseGradeToScoreCmp(dse.m1, scale);
-  if (dse.m2 && dse.m2 !== "—") scoreMap["m2"] = dseGradeToScoreCmp(dse.m2, scale);
+
+  // Step 1: Build raw score map
+  const rawMap: Record<string, number> = {};
+  rawMap["chinese"] = dseGradeToScoreCmp(dse.chinese, scale);
+  rawMap["english"] = dseGradeToScoreCmp(dse.english, scale);
+  rawMap["math"] = dseGradeToScoreCmp(dse.math, scale);
+  if (dse.m1 && dse.m1 !== "—") rawMap["m1"] = dseGradeToScoreCmp(dse.m1, scale);
+  if (dse.m2 && dse.m2 !== "—") rawMap["m2"] = dseGradeToScoreCmp(dse.m2, scale);
   [[dse.elective1Subject, dse.elective1Grade],[dse.elective2Subject, dse.elective2Grade],[dse.elective3Subject, dse.elective3Grade],[(dse as any).elective4Subject, (dse as any).elective4Grade]]
-    .forEach(([subj, grade]) => { if (subj) scoreMap[subj] = dseGradeToScoreCmp(grade, scale); });
+    .forEach(([subj, grade]) => { if (subj) rawMap[subj] = dseGradeToScoreCmp(grade, scale); });
+  if (dse.appliedLearningSubject) {
+    const alMap: Record<string, number> = { "達標並表現優異（I）": 3, "達標並表現優異（II）": 4, "達標": 2, "未達標": 0 };
+    rawMap[dse.appliedLearningSubject] = alMap[dse.appliedLearningGrade] ?? 0;
+  }
+  if (dse.otherLanguage) {
+    const olMap: Record<string, number> = { C2: 5, C1: 4, B2: 3, B1: 2, A2: 1, N1: 5, N2: 4, N3: 3, "第 6 級": 5, "第 5 級": 4, "第 4 級": 3, "第 3 級": 2, "A++": 5, "A+": 5, "A": 4, "B++": 4, "B+": 3, "B": 3, "C": 2, "D": 1, "E": 1 };
+    rawMap[dse.otherLanguage] = olMap[dse.otherLanguageGrade] ?? 0;
+  }
+
+  // Step 2: HKU/UST/PolyU Lv2 exclusion
+  const shouldExcludeLv2 = formula.excludeLv2 === true ||
+    LV2_EXCLUDE_INSTITUTIONS_CMP.includes((course as any).institution ?? "");
+  const scoreMap: Record<string, number> = {};
+  for (const [k, v] of Object.entries(rawMap)) {
+    const rawGrade = (() => {
+      if (k === "chinese") return dse.chinese;
+      if (k === "english") return dse.english;
+      if (k === "math") return dse.math;
+      if (k === "m1") return dse.m1;
+      if (k === "m2") return dse.m2;
+      const pairs = [[dse.elective1Subject, dse.elective1Grade],[dse.elective2Subject, dse.elective2Grade],
+        [dse.elective3Subject, dse.elective3Grade],[(dse as any).elective4Subject, (dse as any).elective4Grade]];
+      const found = pairs.find(([s]) => s === k);
+      return found ? found[1] : null;
+    })();
+    const isLv2OrBelow = rawGrade && ["1", "2", "U"].includes(rawGrade);
+    scoreMap[k] = (shouldExcludeLv2 && isLv2OrBelow) ? 0 : v;
+  }
+
+  // Step 3: Apply weightings
   const weightedMap: Record<string, number> = { ...scoreMap };
   for (const w of (formula.weighted ?? [])) {
     if (weightedMap[w.subject] !== undefined) weightedMap[w.subject] = weightedMap[w.subject] * w.multiplier;
   }
+  for (const w of (formula.weightedBestOf ?? [])) {
+    const candidates = (w.subjects as string[]).filter((s: string) => weightedMap[s] !== undefined);
+    if (candidates.length === 0) continue;
+    const best = candidates.reduce((a: string, b: string) => (weightedMap[a] >= weightedMap[b] ? a : b));
+    weightedMap[best] = weightedMap[best] * w.multiplier;
+  }
+
+  // Step 4: Build available pool
   const excluded = new Set(formula.excluded ?? []);
+  const js4501Special = formula.js4501Special === true;
+  if (js4501Special) { excluded.add("m1"); excluded.add("m2"); }
   const available = Object.entries(weightedMap).filter(([k]) => !excluded.has(k)).map(([k, v]) => ({ subject: k, score: v }));
   const required = new Set(formula.required ?? []);
   const requiredEntries = available.filter(e => required.has(e.subject));
   const optionalEntries = available.filter(e => !required.has(e.subject));
+  optionalEntries.sort((a, b) => b.score - a.score);
+
+  // Step 5: Best N / 3C+2X selection
   const method = formula.method ?? "best5";
-  let total = 0;
+  let selectedEntries: Array<{ subject: string; score: number }> = [];
   if (method === "best5" || method === "best6" || method === "best7" || method === "best4") {
     const n = method === "best4" ? 4 : method === "best6" ? 6 : method === "best7" ? 7 : 5;
     const pool = [...requiredEntries, ...optionalEntries];
     pool.sort((a, b) => b.score - a.score);
-    total = pool.slice(0, n).reduce((s, e) => s + e.score, 0);
-  } else if (method === "2c3x") {
+    selectedEntries = pool.slice(0, n);
+    // JS4501/JS4502 special
+    if (js4501Special && selectedEntries.length === n) {
+      const m1Score = weightedMap["m1"] ?? 0;
+      const m2Score = weightedMap["m2"] ?? 0;
+      const bestMathExt = Math.max(m1Score, m2Score);
+      if (bestMathExt > 0) {
+        const lastEntry = selectedEntries[n - 1];
+        if (bestMathExt > lastEntry.score) {
+          selectedEntries[n - 1] = { subject: "m1m2_blend", score: lastEntry.score * 0.5 + bestMathExt * 0.5 };
+        }
+      }
+    }
+  } else if (method === "3c2x") {
+    // 3C+2X: 3 core subjects + best 2 electives
     const coreSubjects = new Set(formula.coreSubjects ?? ["chinese","english","math"]);
-    const coreEntries = available.filter(e => coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 2);
-    const electiveEntries = available.filter(e => !coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 3);
-    total = [...coreEntries, ...electiveEntries].reduce((s, e) => s + e.score, 0);
+    const coreEntries = available.filter(e => coreSubjects.has(e.subject));
+    const electiveEntries = available.filter(e => !coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 2);
+    selectedEntries = [...coreEntries, ...electiveEntries];
   }
+
+  let total = selectedEntries.reduce((s, e) => s + e.score, 0);
+
+  // Step 6: Bonus subject
+  if (formula.bonusSubject) {
+    const bonus = formula.bonusSubject;
+    const selectedSubjects = new Set(selectedEntries.map(e => e.subject));
+    let bonusScore = 0;
+    if (bonus.subject) {
+      bonusScore = (weightedMap[bonus.subject] ?? 0) * bonus.multiplier;
+    } else {
+      const remaining = available.filter(e => !selectedSubjects.has(e.subject)).sort((a, b) => b.score - a.score);
+      if (remaining.length > 0) bonusScore = remaining[0].score * bonus.multiplier;
+    }
+    total += bonusScore;
+  }
+
   return Math.round(total * 100) / 100;
 }
 function computeScorePctCmp(myScore: number, median: number | null | undefined): number | null {

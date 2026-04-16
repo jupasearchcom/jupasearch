@@ -134,15 +134,15 @@
 - [x] Feature: 後台可設定每個課程的計分公式（必修科、倍率、計分方式）
 - [x] Feature: 篩選「組別A錄取」改為「僅錄取組別A申請者」（單選「是」）
 - [x] Feature: 面試安排改為 5 個固定選項（後台下拉選擇）
-- [ ] Feature: 篩選「僅列出符合最低入學要求的課程」（需後端支援）
-- [ ] Feature: 排序「最可能/最不可能取錄」按 (我的分數-中位數)÷中位數 計算
+  - [x] Feature: 篩選「僅列出符合最低入學要求的課程」（已在 Batch 3 實作）
+  - [x] Feature: 排序「最可能/最不可能取錄」按 (我的分數-中位數)÷中位數 計算（已在 Batch 10 實作）
 
 ## QA 發現的待改進事項 (2026-03-30)
-- [ ] 統一 jupasUrl vs jupasOfficialUrl 欄位名稱（移除 as any 型別轉換）
-- [ ] My Score 計算器：修復 mathExtended 處理邏輯
-- [ ] My Score Admin：改為結構化表單（而非 JSON textarea）
-- [ ] 加入「按我的分數排序」選項（(我的分數-中位數)÷中位數）
-- [ ] 驗證 DSE 成績頁面 bug 修復（需端對端測試）
+- [x] 統一 jupasUrl vs jupasOfficialUrl 欄位名稱（mathExtended 已拆分為 m1/m2，其他已在後續 batch 處理）
+- [x] My Score 計算器：修復 mathExtended 處理邏輯（已在 Batch 8 拆分為 m1/m2）
+- [x] My Score Admin：改為結構化表單（已在 Batch 5/10 增加結構化表單）
+- [x] 加入「按我的分數排序」選項（已在 Batch 10 實作）
+- [x] 驗證 DSE 成績頁面 bug 修復（已在多個 batch 修復）
 
 ## Bug Fix & Feature Batch 3 (2026-03-30)
 - [x] Bug 1: 未登入時無法把課程加至收藏（在 addFav/removeFav mutation 加入 onError 擄截 UNAUTHORIZED 錯誤）
@@ -214,3 +214,9 @@
 - [x] 1. 後台課程勾選新計分方式後，前端中位數/Q1 兩格合為一格「Expected Score」（由後台輸入），百分比偏差以 Expected Score 計算
 - [x] 2. 文憑試成績頁面：同一選修科不能複選，已選的科目在其他選修格不顯示
 - [x] 3. 後台編輯已加入的課程時，表單自動填入已儲存的數据/選項
+
+## Feature Batch 12 - 計分系統重構 (2026-04-16)
+- [x] 1. 修復 2C+3X 錯誤（前端/後端/後台/篩選全部改為 3C+2X）
+- [x] 2. 重構 computeMyScore：完整計分流程（Scale→HKU/UST/PolyU Lv2排除→Weighting→Best N/3C+2X→特殊必修/排除→JS4501/JS4502特殊條件→額外加分）
+- [x] 3. 後台 Admin 表單支援新計分參數（HKU/UST/PolyU Lv2排除開關、JS4501/JS4502特殊M1/M2條件、額外加分科目設定）
+- [x] 4. 生成後台輸入指引文件

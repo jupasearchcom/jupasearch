@@ -151,7 +151,7 @@ export default function CourseDetail() {
   const scoringLabel = course.scoringMethod === "best5" ? "Best 5" :
     course.scoringMethod === "best6" ? "Best 6" :
     course.scoringMethod === "best4" ? "Best 4" :
-    course.scoringMethod === "2c3x" ? "2C+3X" : "—";
+    course.scoringMethod === "3c2x" ? "3C+2X" : "—";
 
   return (
     <div className="container py-6 max-w-4xl">

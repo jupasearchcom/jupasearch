@@ -46,7 +46,7 @@ export const courses = mysqlTable("courses", {
   qualification: mysqlEnum("qualification", ["bachelor", "higher_diploma", "associate_degree"]).default("bachelor"),
 
   // Admission scoring
-  scoringMethod: varchar("scoringMethod", { length: 50 }), // best5, best6, best4, 2c3x
+  scoringMethod: varchar("scoringMethod", { length: 50 }), // best5, best6, best4, 3c2x
   requiredSubjects: json("requiredSubjects").$type<string[]>(), // required subjects
   weightedSubjects: json("weightedSubjects").$type<{ subject: string; multiplier: number }[]>(),
   minRequirement: varchar("minRequirement", { length: 50 }), // e.g. "332A33", "332A22", "22222"
@@ -99,11 +99,11 @@ export const courses = mysqlTable("courses", {
   acceptOtherLanguage: boolean("acceptOtherLanguage").default(false),
   // Score formula (JSON): detailed per-subject rules for "My Score" calculation
   scoreFormula: json("scoreFormula").$type<{
-    method: string; // best5 | best6 | best7 | best4 | 2c3x
+    method: string; // best5 | best6 | best7 | best4 | 3c2x
     required: string[]; // subjects that MUST be included
     excluded: string[]; // subjects that CANNOT be included
     weighted: { subject: string; multiplier: number }[];
-    coreSubjects: string[]; // for 2c3x: the core subjects
+    coreSubjects: string[]; // for 3c2x: the core subjects
     minSubjectRequirements?: { subject: string; minGrade: string }[]; // specific subject minimum grade requirements
     electiveMinReq?: "33" | "22" | null; // elective minimum: "33"=at least 2 electives/M at grade 3+, "22"=at least 2 at grade 2+
     excludeM1M2FromElectiveMin?: boolean; // if true, M1/M2 are not counted towards electiveMinReq

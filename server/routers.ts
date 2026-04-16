@@ -262,15 +262,14 @@ export const appRouter = router({
             const pool = [...requiredEntries, ...optionalEntries];
             pool.sort((a, b) => b.score - a.score);
             total = pool.slice(0, 6).reduce((s, e) => s + e.score, 0);
-          } else if (method === "2c3x") {
-            // 2 core + 3 elective
+          } else if (method === "3c2x") {
+            // 3C+2X: 3 core subjects + best 2 electives
             const coreSubjects = new Set(formula.coreSubjects ?? ["chinese", "english", "math"]);
             const coreEntries = available.filter(e => coreSubjects.has(e.subject));
             const electiveEntries = available.filter(e => !coreSubjects.has(e.subject));
             electiveEntries.sort((a, b) => b.score - a.score);
-            const topCore = coreEntries.sort((a, b) => b.score - a.score).slice(0, 2);
-            const topElective = electiveEntries.slice(0, 3);
-            total = [...topCore, ...topElective].reduce((s, e) => s + e.score, 0);
+            const topElective = electiveEntries.slice(0, 2);
+            total = [...coreEntries, ...topElective].reduce((s, e) => s + e.score, 0);
           }
 
           results[id] = Math.round(total * 100) / 100;
