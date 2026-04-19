@@ -220,3 +220,8 @@
 - [x] 2. 重構 computeMyScore：完整計分流程（Scale→HKU/UST/PolyU Lv2排除→Weighting→Best N/3C+2X→特殊必修/排除→JS4501/JS4502特殊條件→額外加分）
 - [x] 3. 後台 Admin 表單支援新計分參數（HKU/UST/PolyU Lv2排除開關、JS4501/JS4502特殊M1/M2條件、額外加分科目設定）
 - [x] 4. 生成後台輸入指引文件
+
+## Bug Fix Batch 13 (2026-04-18)
+- [x] Bug 1: computeMyScore 的 required 科目未強制計入（Best N 排序後 required 科目可能被排除）→ 修復：先保留所有 required，再從剩餘名額填 optional（Courses.tsx / Compare.tsx / routers.ts 三處同步）
+- [x] Bug 2: 8.5 scale 未生效 → 根本原因是 scoringScale 欄位未在 Drizzle schema 定義，ORM 靜默忽略儲存，已修復 schema 並更新資料庫欄位類型
+- [x] Bug 3: 後台編輯課程時，比例尺和特定科目要求未自動填入表單 → 同 Bug 2，schema 修復後 select() 會正確回傳欄位值

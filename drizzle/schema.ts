@@ -107,6 +107,16 @@ export const courses = mysqlTable("courses", {
     minSubjectRequirements?: { subject: string; minGrade: string }[]; // specific subject minimum grade requirements
     electiveMinReq?: "33" | "22" | null; // elective minimum: "33"=at least 2 electives/M at grade 3+, "22"=at least 2 at grade 2+
     excludeM1M2FromElectiveMin?: boolean; // if true, M1/M2 are not counted towards electiveMinReq
+    js4501Special?: boolean; // JS4501/JS4502 special M1/M2 blending rule
+    excludeLv2?: boolean; // force exclude Lv2 subjects regardless of institution
+    weightedBestOf?: { subjects: string[]; multiplier: number }[]; // only best subject in group gets multiplier
+    bonusSubject?: { multiplier: number; subject?: string }; // bonus score for N+1 subject
+  }>(),
+  // Scoring scale: "8.5" or "7" (default)
+  scoringScale: varchar("scoringScale", { length: 10 }),
+  // Specific subject requirements (JSON): groups of OR-subjects with minimum grade
+  specificSubjectRequirements: json("specificSubjectRequirements").$type<{
+    groups: { subjects: string[]; minGrade: number }[];
   }>(),
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),

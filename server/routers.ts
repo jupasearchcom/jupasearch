@@ -250,18 +250,12 @@ export const appRouter = router({
           let total = 0;
           const method = formula.method ?? "best5";
 
-          if (method === "best5") {
-            const pool = [...requiredEntries, ...optionalEntries];
-            pool.sort((a, b) => b.score - a.score);
-            total = pool.slice(0, 5).reduce((s, e) => s + e.score, 0);
-          } else if (method === "best4") {
-            const pool = [...requiredEntries, ...optionalEntries];
-            pool.sort((a, b) => b.score - a.score);
-            total = pool.slice(0, 4).reduce((s, e) => s + e.score, 0);
-          } else if (method === "best6") {
-            const pool = [...requiredEntries, ...optionalEntries];
-            pool.sort((a, b) => b.score - a.score);
-            total = pool.slice(0, 6).reduce((s, e) => s + e.score, 0);
+          if (method === "best5" || method === "best4" || method === "best6" || method === "best7") {
+            const n = method === "best4" ? 4 : method === "best6" ? 6 : method === "best7" ? 7 : 5;
+            // Required subjects are ALWAYS included; fill remaining slots with best optional subjects
+            const remainingSlots = Math.max(0, n - requiredEntries.length);
+            const topOptional = optionalEntries.slice(0, remainingSlots);
+            total = [...requiredEntries, ...topOptional].reduce((s, e) => s + e.score, 0);
           } else if (method === "3c2x") {
             // 3C+2X: 3 core subjects + best 2 electives
             const coreSubjects = new Set(formula.coreSubjects ?? ["chinese", "english", "math"]);

@@ -99,9 +99,10 @@ function computeMyScoreCmp(course: Course, dse: DSEScoreData): number | null {
   let selectedEntries: Array<{ subject: string; score: number }> = [];
   if (method === "best5" || method === "best6" || method === "best7" || method === "best4") {
     const n = method === "best4" ? 4 : method === "best6" ? 6 : method === "best7" ? 7 : 5;
-    const pool = [...requiredEntries, ...optionalEntries];
-    pool.sort((a, b) => b.score - a.score);
-    selectedEntries = pool.slice(0, n);
+    // Required subjects are ALWAYS included; fill remaining slots with best optional subjects
+    const remainingSlots = Math.max(0, n - requiredEntries.length);
+    const topOptional = optionalEntries.slice(0, remainingSlots);
+    selectedEntries = [...requiredEntries, ...topOptional];
     // JS4501/JS4502 special
     if (js4501Special && selectedEntries.length === n) {
       const m1Score = weightedMap["m1"] ?? 0;
