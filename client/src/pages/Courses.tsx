@@ -383,7 +383,7 @@ const DEGREE_TYPES_MAP: Record<string, { zhTw: string; zhCn: string; en: string 
 const DEGREE_TYPES = Object.keys(DEGREE_TYPES_MAP);
 
 const SCORING_METHODS = ["best5", "best6", "best4", "3c2x"];
-const SCORE_GAPS = ["above_median", "above_q1", "below_q1", "between_median_q1"];
+const SCORE_GAPS = ["above_median", "above_expected", "below_expected", "above_q1", "below_q1"];
 // Removed self_financed per user request
 const FUNDING_TYPES = ["ugc", "nmtss", "sssdp"];
 const RETAKE_POLICIES = ["yes_no_penalty", "yes_with_penalty", "no"];
@@ -617,7 +617,7 @@ function CourseCard({
         <div className="flex items-center justify-between px-2 py-1 rounded-md mb-2 text-xs bg-muted/30 text-muted-foreground">
           <span>{language === "en" ? "My Score" : language === "zh-CN" ? "我的分数" : "我的分數"}</span>
           <span>
-            <Link href="/dse-scores" className="underline hover:text-foreground">
+            <Link href="/dse" className="underline hover:text-foreground">
               {language === "en" ? "Enter DSE scores" : language === "zh-CN" ? "输入DSE成绩" : "輸入DSE成績"}
             </Link>
           </span>
@@ -801,8 +801,6 @@ export default function Courses() {
     institutions: institutions.length ? institutions : undefined,
     durations: durations.length ? durations : undefined,
     qualifications: qualifications.length ? qualifications : undefined,
-    scoringMethods: scoringMethods.length ? scoringMethods : undefined,
-    scoreGaps: scoreGaps.length ? scoreGaps : undefined,
     fundingTypes: fundingTypes.length ? fundingTypes : undefined,
     interviewArrangements: interviewArrangements.length ? interviewArrangements : undefined,
     groupAOnly,
@@ -814,7 +812,7 @@ export default function Courses() {
     sortBy,
     page,
     pageSize: PAGE_SIZE,
-  }), [debouncedSearch, degreeTypes, institutions, durations, qualifications, scoringMethods, scoreGaps, fundingTypes, interviewArrangements, groupAOnly, flexibleAdmission, retakePolicies, parsedTuitionMin, parsedTuitionMax, sortBy, page]); // eslint-disable-line react-hooks/exhaustive-deps
+  }), [debouncedSearch, degreeTypes, institutions, durations, qualifications, fundingTypes, interviewArrangements, groupAOnly, flexibleAdmission, retakePolicies, parsedTuitionMin, parsedTuitionMax, sortBy, page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data, isLoading } = trpc.courses.list.useQuery(queryInput);
   const rawCourses = data?.courses ?? [];
@@ -824,6 +822,24 @@ export default function Courses() {
     // Filter: only show courses that meet minimum requirements
     if (onlyMeetMinReq && dseScores) {
       result = result.filter((c) => checkMeetsMinRequirement(c, dseScores));
+    }
+    // Filter: My Score filter (client-side, requires DSE scores)
+    if (scoreGaps.length > 0 && dseScores) {
+      result = result.filter((c) => {
+        const myScore = computeMyScore(c, dseScores);
+        if (myScore === null) return false;
+        const median = c.lastYearMedian ? Number(c.lastYearMedian) : null;
+        const q1 = c.lastYearQ1 ? Number(c.lastYearQ1) : null;
+        const expected = (c.scoringMethodChanged && c.expectedScore) ? Number(c.expectedScore) : median;
+        return scoreGaps.some((gap) => {
+          if (gap === "above_median") return median !== null && myScore > median;
+          if (gap === "above_expected") return expected !== null && myScore > expected;
+          if (gap === "below_expected") return expected !== null && myScore < expected;
+          if (gap === "above_q1") return q1 !== null && myScore > q1;
+          if (gap === "below_q1") return q1 !== null && myScore < q1;
+          return false;
+        });
+      });
     }
     // Client-side sort by probability (percentage deviation) when DSE scores are available
     if (dseScores && (sortBy === "probability_desc" || sortBy === "probability_asc")) {
@@ -842,9 +858,10 @@ export default function Courses() {
       });
     }
     return result;
-  }, [rawCourses, onlyMeetMinReq, dseScores, sortBy]);
-  const total = (onlyMeetMinReq || (dseScores && (sortBy === "probability_desc" || sortBy === "probability_asc"))) ? courses.length : (data?.total ?? 0);
-  const totalPages = (onlyMeetMinReq || (dseScores && (sortBy === "probability_desc" || sortBy === "probability_asc"))) ? 1 : Math.ceil((data?.total ?? 0) / PAGE_SIZE);
+  }, [rawCourses, onlyMeetMinReq, dseScores, sortBy, scoreGaps]);
+  const isClientSideFiltered = onlyMeetMinReq || (scoreGaps.length > 0 && !!dseScores) || (dseScores && (sortBy === "probability_desc" || sortBy === "probability_asc"));
+  const total = isClientSideFiltered ? courses.length : (data?.total ?? 0);
+  const totalPages = isClientSideFiltered ? 1 : Math.ceil((data?.total ?? 0) / PAGE_SIZE);
 
   // Favorites — server or local
   const { data: serverFavoriteIds = [] } = trpc.favorites.ids.useQuery(undefined, { enabled: isAuthenticated });
@@ -931,7 +948,7 @@ export default function Courses() {
   const clearFilters = () => {
     setSearch(""); setDebouncedSearch("");
     setDegreeTypes([]); setInstitutions([]); setDurations([]);
-    setQualifications([]); setScoringMethods([]); setScoreGaps([]);
+    setQualifications([]); setScoreGaps([]);
     setFundingTypes([]); setInterviewArrangements([]);
     setGroupAOnly(undefined); setFlexibleAdmission(undefined); setRetakePolicies([]);
     setTuitionMin(""); setTuitionMax("");
@@ -940,7 +957,7 @@ export default function Courses() {
   };
 
   const hasActiveFilters = degreeTypes.length > 0 || institutions.length > 0 || durations.length > 0 ||
-    qualifications.length > 0 || scoringMethods.length > 0 || scoreGaps.length > 0 ||
+    qualifications.length > 0 || scoreGaps.length > 0 ||
     fundingTypes.length > 0 || interviewArrangements.length > 0 ||
     groupAOnly !== undefined || flexibleAdmission !== undefined || retakePolicies.length > 0 ||
     tuitionMin !== "" || tuitionMax !== "" || onlyMeetMinReq;
@@ -1001,22 +1018,20 @@ export default function Courses() {
         />
       </FilterSection>
       <Separator />
-      <FilterSection title={t("courses.filter.scoring")}>
-        <CheckboxGroup
-          options={SCORING_METHODS}
-          selected={scoringMethods}
-          onChange={(v) => { setScoringMethods(v); setPage(1); }}
-          labelFn={(v) => v === "best5" ? "Best 5" : v === "best6" ? "Best 6" : v === "best4" ? "Best 4" : "3C+2X"}
-        />
-      </FilterSection>
-      <Separator />
       <FilterSection title={t("courses.filter.scoreGap")}>
-        <CheckboxGroup
-          options={SCORE_GAPS}
-          selected={scoreGaps}
-          onChange={(v) => { setScoreGaps(v); setPage(1); }}
-          labelFn={(v) => t(`scoreGap.${v}`)}
-        />
+        {!dseScores && (
+          <p className="text-xs text-muted-foreground">
+            {language === "en" ? "Enter DSE scores to use this filter" : language === "zh-CN" ? "请先输入文凭试成绩" : "請先輸入文憑試成績"}
+          </p>
+        )}
+        {dseScores && (
+          <CheckboxGroup
+            options={SCORE_GAPS}
+            selected={scoreGaps}
+            onChange={(v) => { setScoreGaps(v); setPage(1); }}
+            labelFn={(v) => t(`scoreGap.${v}`)}
+          />
+        )}
       </FilterSection>
       <Separator />
       <FilterSection title={t("courses.filter.funding")}>

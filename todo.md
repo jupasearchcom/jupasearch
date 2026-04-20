@@ -225,3 +225,8 @@
 - [x] Bug 1: computeMyScore 的 required 科目未強制計入（Best N 排序後 required 科目可能被排除）→ 修復：先保留所有 required，再從剩餘名額填 optional（Courses.tsx / Compare.tsx / routers.ts 三處同步）
 - [x] Bug 2: 8.5 scale 未生效 → 根本原因是 scoringScale 欄位未在 Drizzle schema 定義，ORM 靜默忽略儲存，已修復 schema 並更新資料庫欄位類型
 - [x] Bug 3: 後台編輯課程時，比例尺和特定科目要求未自動填入表單 → 同 Bug 2，schema 修復後 select() 會正確回傳欄位值
+
+## Feature Batch 14 - 篩選與路由修正 (2026-04-21)
+- [x] 1. 修正「輸入DSE成績」按鈕路由：/dse-scores → /dse
+- [x] 2. 移除篩選中的「計分方式」FilterSection
+- [x] 3. 將篩選「分差」改名為「我的分數」，新增「高於預期分數」/「低於預期分數」選項，實作 client-side 真實篩選（根據 computeMyScore 結果對比 median/expected/Q1）
