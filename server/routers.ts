@@ -296,6 +296,12 @@ export const appRouter = router({
         await bulkInsertCourses(input as any[]);
         return { success: true, count: input.length };
       }),
+
+    exportAll: adminProcedure.query(async () => {
+      // Export all courses without pagination
+      const result = await getCourses({ pageSize: 9999 });
+      return result.courses;
+    }),
   }),
 
   // ─── Favorites (no login required - use publicProcedure with optional auth) ─

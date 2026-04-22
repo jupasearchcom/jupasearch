@@ -312,6 +312,72 @@ function checkMeetsMinRequirement(course: Course, dse: DSEScoreData | null): boo
   return true;
 }
 
+/** Get list of reasons why DSE scores do not meet minimum requirements */
+function getMinReqFailReasons(course: Course, dse: DSEScoreData): string[] {
+  const reasons: string[] = [];
+  const req = course.minRequirement;
+  const reqMap: Record<string, string> = { "2": "2", "3": "3", "4": "4", "5": "5", "A": "達標" };
+  const subjectLabel: Record<string, string> = {
+    chinese: "中文", english: "英文", math: "數學",
+    m1: "M1", m2: "M2",
+  };
+  if (req && req.length >= 3) {
+    const chineseReq = reqMap[req[0]] ?? req[0];
+    const englishReq = reqMap[req[1]] ?? req[1];
+    const mathReq = reqMap[req[2]] ?? req[2];
+    if (!gradeAtLeast(dse.chinese, chineseReq)) reasons.push(`中文：需要 ${chineseReq} 級，您為 ${dse.chinese}`);
+    if (!gradeAtLeast(dse.english, englishReq)) reasons.push(`英文：需要 ${englishReq} 級，您為 ${dse.english}`);
+    if (!gradeAtLeast(dse.math, mathReq)) reasons.push(`數學：需要 ${mathReq} 級，您為 ${dse.math}`);
+  }
+  const userSubjects: Record<string, string> = {
+    chinese: dse.chinese, english: dse.english, math: dse.math,
+    [dse.elective1Subject]: dse.elective1Grade,
+    [dse.elective2Subject]: dse.elective2Grade,
+    [dse.elective3Subject]: dse.elective3Grade,
+    [(dse as any).elective4Subject ?? ""]: (dse as any).elective4Grade ?? "—",
+  };
+  const formula = (course as any).scoreFormula;
+  if (formula?.minSubjectRequirements) {
+    for (const subReq of formula.minSubjectRequirements) {
+      const userGrade = userSubjects[subReq.subject];
+      if (!userGrade || !gradeAtLeast(userGrade, subReq.minGrade)) {
+        const label = subjectLabel[subReq.subject] ?? subReq.subject;
+        reasons.push(`${label}：需要 ${subReq.minGrade} 級，您為 ${userGrade ?? "未填寫"}`);
+      }
+    }
+  }
+  if (formula?.electiveMinReq) {
+    const minGrade = formula.electiveMinReq === "33" ? "3" : "2";
+    const excludeM = formula.excludeM1M2FromElectiveMin === true;
+    const electiveCandidates: string[] = [];
+    if (!excludeM) {
+      if (dse.m1 && dse.m1 !== "—") electiveCandidates.push(dse.m1);
+      if (dse.m2 && dse.m2 !== "—") electiveCandidates.push(dse.m2);
+    }
+    if (dse.elective1Subject && dse.elective1Grade && dse.elective1Grade !== "—") electiveCandidates.push(dse.elective1Grade);
+    if (dse.elective2Subject && dse.elective2Grade && dse.elective2Grade !== "—") electiveCandidates.push(dse.elective2Grade);
+    if (dse.elective3Subject && dse.elective3Grade && dse.elective3Grade !== "—") electiveCandidates.push(dse.elective3Grade);
+    if ((dse as any).elective4Subject && (dse as any).elective4Grade && (dse as any).elective4Grade !== "—") electiveCandidates.push((dse as any).elective4Grade);
+    const meetingCount = electiveCandidates.filter(g => gradeAtLeast(g, minGrade)).length;
+    if (meetingCount < 2) reasons.push(`選修科：需要至少 2 科達 ${minGrade} 級，您目前只有 ${meetingCount} 科符合`);
+  }
+  const specificReqs = (course as any).specificSubjectRequirements;
+  if (specificReqs?.groups && Array.isArray(specificReqs.groups)) {
+    for (const group of specificReqs.groups) {
+      const minGradeStr = String(group.minGrade);
+      const anyMeets = (group.subjects as string[]).some((subj) => {
+        const userGrade = userSubjects[subj];
+        return userGrade && gradeAtLeast(userGrade, minGradeStr);
+      });
+      if (!anyMeets) {
+        const labels = (group.subjects as string[]).map((s: string) => subjectLabel[s] ?? s).join("/");
+        reasons.push(`${labels}：需要其中一科達 ${minGradeStr} 級`);
+      }
+    }
+  }
+  return reasons;
+}
+
 function getScoreColor(score: number, q1: number | null | undefined, median: number | null | undefined): "red" | "yellow" | "green" | "gray" {
   if (!q1 && !median) return "gray";
   const q1Val = q1 ? Number(q1) : 0;
@@ -383,7 +449,7 @@ const DEGREE_TYPES_MAP: Record<string, { zhTw: string; zhCn: string; en: string 
 const DEGREE_TYPES = Object.keys(DEGREE_TYPES_MAP);
 
 const SCORING_METHODS = ["best5", "best6", "best4", "3c2x"];
-const SCORE_GAPS = ["above_median", "above_expected", "below_expected", "above_q1", "below_q1"];
+const SCORE_GAPS = ["above_median", "between_median_q1", "below_q1"];
 // Removed self_financed per user request
 const FUNDING_TYPES = ["ugc", "nmtss", "sssdp"];
 const RETAKE_POLICIES = ["yes_no_penalty", "yes_with_penalty", "no"];
@@ -466,23 +532,35 @@ function CourseCard({
       meetsMinReq === false && "border-red-300/50 dark:border-red-800/50"
     )}>
       {/* Does not meet min requirement badge (top-right corner) */}
-      {meetsMinReq === false && (
-        <div className="absolute top-2 right-2 z-10">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-1 bg-red-500/15 text-red-600 dark:text-red-400 text-xs px-1.5 py-0.5 rounded-full cursor-help">
-                <AlertTriangle className="w-3 h-3" />
-                <span className="hidden sm:inline">
-                  {language === "en" ? "Below min. req." : language === "zh-CN" ? "不符合最低要求" : "不符合最低要求"}
-                </span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              {language === "en" ? "Your DSE results do not meet the minimum entry requirements for this course" : language === "zh-CN" ? "您的文憑试成绩不符合此课程的最低入学要求" : "您的文憑試成績不符合此課程的最低入學要求"}
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      )}
+      {meetsMinReq === false && dseScores && (() => {
+        const failReasons = getMinReqFailReasons(course, dseScores);
+        return (
+          <div className="absolute top-2 right-2 z-10">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1 bg-red-500/15 text-red-600 dark:text-red-400 text-xs px-1.5 py-0.5 rounded-full cursor-help">
+                  <AlertTriangle className="w-3 h-3" />
+                  <span className="hidden sm:inline">
+                    {language === "en" ? "Below min. req." : language === "zh-CN" ? "不符合最低要求" : "不符合最低要求"}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[260px] text-xs">
+                <div className="font-medium mb-1">
+                  {language === "en" ? "Requirements not met:" : language === "zh-CN" ? "不符合项目：" : "不符合項目："}
+                </div>
+                {failReasons.length > 0 ? (
+                  <ul className="space-y-0.5 list-disc list-inside">
+                    {failReasons.map((r, i) => <li key={i}>{r}</li>)}
+                  </ul>
+                ) : (
+                  <span>{language === "en" ? "Does not meet minimum requirements" : "不符合最低入學要求"}</span>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        );
+      })()}
       {/* Badges row */}
       <div className="flex items-center gap-1.5 mb-3 flex-wrap">
         {course.jupasCode && (
@@ -590,12 +668,27 @@ function CourseCard({
                     <TooltipTrigger asChild>
                       <span className="cursor-help text-[10px] text-muted-foreground ml-0.5">*</span>
                     </TooltipTrigger>
-                    <TooltipContent className="max-w-[220px] text-xs">
-                      {language === "en"
-                        ? "Percentage deviation from last year's median: (My Score − Last Year Median) ÷ Last Year Median × 100%"
-                        : language === "zh-CN"
-                        ? "与去年加成后中位数的偏差：（我的分数 − 去年中位数）÷ 去年中位数 × 100%"
-                        : "與去年加成後中位數的偏差：（我的分數 − 去年中位數）÷ 去年中位數 × 100%"}
+                    <TooltipContent className="max-w-[260px] text-xs space-y-1">
+                      <div className="font-medium">
+                        {language === "en" ? "Score % Deviation" : language === "zh-CN" ? "分数偏差百分比" : "分數偏差百分比"}
+                      </div>
+                      <div>
+                        {language === "en"
+                          ? "Formula: (My Score − Reference) ÷ Reference × 100%"
+                          : language === "zh-CN"
+                          ? "公式：（我的分数 − 参考分数）÷ 参考分数 × 100%"
+                          : "公式：（我的分數 − 參考分數）÷ 參考分數 × 100%"}
+                      </div>
+                      <div className="text-muted-foreground">
+                        {language === "en"
+                          ? `Reference: ${course.scoringMethodChanged && course.expectedScore ? `Expected Score (${course.expectedScore})` : `Last Year Median (${course.lastYearMedian ?? "N/A"})`}`
+                          : language === "zh-CN"
+                          ? `参考分数：${course.scoringMethodChanged && course.expectedScore ? `预期分数（${course.expectedScore}）` : `去年中位数（${course.lastYearMedian ?? "N/A"}）`}`
+                          : `參考分數：${course.scoringMethodChanged && course.expectedScore ? `預期分數（${course.expectedScore}）` : `去年中位數（${course.lastYearMedian ?? "N/A"}）`}`}
+                      </div>
+                      <div className="text-muted-foreground">
+                        {language === "en" ? "+ = above reference, − = below reference" : language === "zh-CN" ? "+ = 高于参考分数，− = 低于参考分数" : "+ = 高於參考分數，− = 低於參考分數"}
+                      </div>
                     </TooltipContent>
                   </Tooltip>
                 </>
@@ -603,16 +696,32 @@ function CourseCard({
           </span>
         </div>
       )}
-      {dseScores && meetsMinReq === false && (
-        <div className="flex items-center justify-between px-2 py-1 rounded-md mb-2 text-xs bg-red-500/10 text-red-600 dark:text-red-400">
-          <span className="font-medium">
-            {language === "en" ? "My Score" : language === "zh-CN" ? "我的分数" : "我的分數"}
-          </span>
-          <span className="text-[10px]">
-            {language === "en" ? "Does not meet min. req." : language === "zh-CN" ? "不符合最低要求" : "不符合最低要求"}
-          </span>
-        </div>
-      )}
+      {dseScores && meetsMinReq === false && (() => {
+        const failReasons = getMinReqFailReasons(course, dseScores);
+        return (
+          <div className="flex items-center justify-between px-2 py-1 rounded-md mb-2 text-xs bg-red-500/10 text-red-600 dark:text-red-400">
+            <span className="font-medium">
+              {language === "en" ? "My Score" : language === "zh-CN" ? "我的分数" : "我的分數"}
+            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-[10px] cursor-help underline decoration-dotted">
+                  {language === "en" ? "Does not meet min. req." : language === "zh-CN" ? "不符合最低要求" : "不符合最低要求"}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[280px] text-xs space-y-1">
+                <div className="font-medium mb-1">
+                  {language === "en" ? "Reasons:" : language === "zh-CN" ? "不符合原因：" : "不符合原因："}
+                </div>
+                {failReasons.length > 0
+                  ? failReasons.map((r, i) => <div key={i}>• {r}</div>)
+                  : <div>{language === "en" ? "Minimum requirement not met" : "不符合最低入學要求"}</div>
+                }
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        );
+      })()}
       {!dseScores && (course as any).scoreFormula && (
         <div className="flex items-center justify-between px-2 py-1 rounded-md mb-2 text-xs bg-muted/30 text-muted-foreground">
           <span>{language === "en" ? "My Score" : language === "zh-CN" ? "我的分数" : "我的分數"}</span>
@@ -830,12 +939,11 @@ export default function Courses() {
         if (myScore === null) return false;
         const median = c.lastYearMedian ? Number(c.lastYearMedian) : null;
         const q1 = c.lastYearQ1 ? Number(c.lastYearQ1) : null;
-        const expected = (c.scoringMethodChanged && c.expectedScore) ? Number(c.expectedScore) : median;
+        // Use expectedScore as reference if scoringMethodChanged, else use median
+        const ref = (c.scoringMethodChanged && c.expectedScore) ? Number(c.expectedScore) : median;
         return scoreGaps.some((gap) => {
-          if (gap === "above_median") return median !== null && myScore > median;
-          if (gap === "above_expected") return expected !== null && myScore > expected;
-          if (gap === "below_expected") return expected !== null && myScore < expected;
-          if (gap === "above_q1") return q1 !== null && myScore > q1;
+          if (gap === "above_median") return ref !== null && myScore > ref;
+          if (gap === "between_median_q1") return ref !== null && q1 !== null && myScore >= q1 && myScore <= ref;
           if (gap === "below_q1") return q1 !== null && myScore < q1;
           return false;
         });

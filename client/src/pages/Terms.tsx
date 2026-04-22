@@ -18,10 +18,6 @@ const content = {
         body: `本平台為香港升學課程獨立資訊平台，提供 JUPAS 課程資訊查詢、比較、文憑試成績輸入及志願模擬等功能。本平台並非 JUPAS 官方平台，亦與任何香港院校無官方關聯。`,
       },
       {
-        heading: "用戶帳戶",
-        body: `部分功能（如將文憑試成績永久儲存至帳戶）需要登入。收藏課程及模擬志願功能無需登入，資料儲存於本機瀏覽器，登入後可同步至帳戶。您有責任妥善保管帳戶資料，並對帳戶下之所有活動負責。如發現帳戶被未經授權使用，請立即通知我們。`,
-      },
-      {
         heading: "禁止行為",
         body: `用戶不得：（1）使用本平台從事任何違法活動；（2）嘗試入侵、破壞或干擾本平台之正常運作；（3）抓取、複製或再分發本平台之課程資料用於商業目的；（4）冒充他人或提供虛假資料；（5）上傳任何含有病毒或惡意代碼之內容。`,
       },
@@ -57,10 +53,6 @@ const content = {
         body: `本平台为香港升学课程独立信息平台，提供 JUPAS 课程信息查询、比较、文凭试成绩输入及志愿模拟等功能。本平台并非 JUPAS 官方平台，亦与任何香港院校无官方关联。`,
       },
       {
-        heading: "用户账户",
-        body: `部分功能（如将文凭试成绩永久保存至账户）需要登录。收藏课程及模拟志愿功能无需登录，资料储存于本机浏览器，登录后可同步至账户。您有责任妥善保管账户资料，并对账户下之所有活动负责。如发现账户被未经授权使用，请立即通知我们。`,
-      },
-      {
         heading: "禁止行为",
         body: `用户不得：（1）使用本平台从事任何违法活动；（2）尝试入侵、破坏或干扰本平台之正常运作；（3）抓取、复制或再分发本平台之课程资料用于商业目的；（4）冒充他人或提供虚假资料；（5）上传任何含有病毒或恶意代码之内容。`,
       },
@@ -94,10 +86,6 @@ const content = {
       {
         heading: "Description of Service",
         body: `This Platform is an independent information platform for Hong Kong higher education courses, providing JUPAS course search, comparison, DSE score input, and choice simulation features. This Platform is not the official JUPAS platform and has no official affiliation with any Hong Kong institution.`,
-      },
-      {
-        heading: "User Accounts",
-        body: `Some features (such as permanently saving DSE scores to your account) require login. Favouriting courses and simulating choices do not require login; data is stored locally in the browser and can be synced to your account after login. You are responsible for maintaining the confidentiality of your account information and for all activities that occur under your account. Please notify us immediately if you discover any unauthorised use of your account.`,
       },
       {
         heading: "Prohibited Conduct",

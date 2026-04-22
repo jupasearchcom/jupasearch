@@ -29,6 +29,55 @@ function computeChoiceScorePct(myScore: number, refScore: number | null | undefi
   return (myScore - Number(refScore)) / Number(refScore) * 100;
 }
 
+// Simplified score computation for Choices page (mirrors Courses.tsx logic)
+function computeChoiceMyScore(course: Course, dse: DSEScoreData): number | null {
+  const formula = (course as any).scoreFormula as any;
+  if (!formula) return null;
+  const scale = (course as any).scoringScale === "8.5" ? "8.5" : "7";
+  const gradeMap: Record<string, Record<string, number>> = {
+    "7": { "5**": 7, "5*": 6, "5": 5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0 },
+    "8.5": { "5**": 8.5, "5*": 7, "5": 5.5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0 },
+  };
+  const gm = gradeMap[scale];
+  const numericGrade = (g: string | number | undefined): number | null => {
+    if (g === undefined || g === null || g === "") return null;
+    const s = String(g);
+    if (gm[s] !== undefined) return gm[s];
+    const n = parseFloat(s);
+    return isNaN(n) ? null : n;
+  };
+  const scoreMap: Record<string, number> = {};
+  const add = (k: string, v: string | number | undefined) => { const n = numericGrade(v); if (n !== null) scoreMap[k] = n; };
+  add("chinese", dse.chinese); add("english", dse.english); add("math", dse.math);
+  if (dse.m1 && dse.m1 !== "—" && dse.m1 !== "") add("m1", dse.m1);
+  if (dse.m2 && dse.m2 !== "—" && dse.m2 !== "") add("m2", dse.m2);
+  if (dse.elective1Subject && dse.elective1Grade) add(dse.elective1Subject, dse.elective1Grade);
+  if (dse.elective2Subject && dse.elective2Grade) add(dse.elective2Subject, dse.elective2Grade);
+  if (dse.elective3Subject && dse.elective3Grade) add(dse.elective3Subject, dse.elective3Grade);
+  if (dse.elective4Subject && dse.elective4Grade) add(dse.elective4Subject, dse.elective4Grade);
+  const excluded: string[] = formula.excluded ?? [];
+  const required: string[] = formula.required ?? [];
+  const weighted: { subject: string; multiplier: number }[] = formula.weighted ?? [];
+  const weightedMap: Record<string, number> = { ...scoreMap };
+  for (const w of weighted) { if (weightedMap[w.subject] !== undefined) weightedMap[w.subject] *= w.multiplier; }
+  const available = Object.entries(weightedMap)
+    .filter(([k]) => !excluded.includes(k))
+    .map(([k, v]) => ({ subject: k, score: v }));
+  const method = formula.method ?? "best5";
+  const n = method === "best4" ? 4 : method === "best6" ? 6 : method === "best7" ? 7 : 5;
+  if (method === "3c2x") {
+    const core = (formula.coreSubjects ?? ["chinese","english","math"]) as string[];
+    const coreScores = core.map((s) => weightedMap[s] ?? 0);
+    const elec = available.filter((x) => !core.includes(x.subject)).sort((a, b) => b.score - a.score).slice(0, 2);
+    return coreScores.reduce((a, b) => a + b, 0) + elec.reduce((a, b) => a + b.score, 0);
+  }
+  const reqItems = required.filter((s) => weightedMap[s] !== undefined).map((s) => ({ subject: s, score: weightedMap[s] }));
+  const optItems = available.filter((x) => !required.includes(x.subject)).sort((a, b) => b.score - a.score);
+  const remaining = Math.max(0, n - reqItems.length);
+  const selected = [...reqItems, ...optItems.slice(0, remaining)];
+  return selected.reduce((a, b) => a + b.score, 0);
+}
+
 const LS_KEY = "jupasearch_choices";
 const LS_PENDING_KEY = "jupasearch_choices_pending";
 
@@ -399,14 +448,30 @@ export default function Choices() {
                 </div>
 
                 {course && (() => {
-                  // Compute score pct if DSE scores available
-                  // We need a simplified score computation here
                   const refScore = (course.scoringMethodChanged && course.expectedScore)
                     ? Number(course.expectedScore)
                     : (course.lastYearMedian ? Number(course.lastYearMedian) : null);
-                  // Simple score pct display (no full computeMyScore, just show refScore and pct if available)
+                  // Compute my score from DSE scores if available
+                  const myScoreVal = dseScores ? computeChoiceMyScore(course, dseScores) : null;
+                  const pct = (myScoreVal !== null && refScore) ? computeChoiceScorePct(myScoreVal, refScore) : null;
+                  const pctColor = pct === null ? "" : pct >= 0 ? "text-emerald-600" : "text-rose-500";
                   return (
                     <div className="hidden sm:flex items-center gap-4 text-center shrink-0">
+                      {myScoreVal !== null && (
+                        <div>
+                          <div className="text-xs font-medium flex items-center gap-0.5 justify-center">
+                            <span>{myScoreVal.toFixed(1)}</span>
+                            {pct !== null && (
+                              <span className={`text-[10px] ${pctColor}`}>
+                                ({pct >= 0 ? "+" : ""}{pct.toFixed(1)}%)
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {language === "en" ? "My Score" : "我的分數"}
+                          </div>
+                        </div>
+                      )}
                       <div>
                         <div className="text-xs font-medium">
                           {course.scoringMethodChanged && course.expectedScore
@@ -448,7 +513,7 @@ export default function Choices() {
       )}
 
       {/* ─── Pending Courses (Staging Area) ─── */}
-      {pendingIds.length > 0 && (
+      {(true) && (
         <div className="mt-2">
           <div className="flex items-center gap-2 mb-3">
             <h2 className="text-sm font-semibold text-foreground">
@@ -465,6 +530,19 @@ export default function Choices() {
               ? "从课程搜索添加的课程。点击「添加」将其移入志愿表。"
               : "從課程搜尋加入的課程。點擊「添加」將其移入志願表。"}
           </p>
+          {pendingIds.length === 0 && (
+            <div className="text-center py-6 border border-dashed border-border rounded-xl">
+              <p className="text-xs text-muted-foreground mb-3">
+                {language === "en" ? "No pending courses. Add courses from search to compare before committing." : language === "zh-CN" ? "暂无待加入课程。可先从课程搜索加入。" : "暫無待加入課程。可先從課程搜尋加入。"}
+              </p>
+              <Link href="/courses">
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Search className="w-4 h-4" />
+                  {t("choices.addFromSearch")}
+                </Button>
+              </Link>
+            </div>
+          )}
           <div className="space-y-2">
             {pendingIds.map((courseId) => {
               const course = courseDetails[courseId];
@@ -528,17 +606,7 @@ export default function Choices() {
         </div>
       )}
 
-      {/* Add more button */}
-      {localChoices.length > 0 && localChoices.length < 20 && pendingIds.length === 0 && (
-        <div className="mt-4 text-center">
-          <Link href="/courses">
-            <Button variant="outline" size="sm" className="gap-2">
-              <Search className="w-4 h-4" />
-              {t("choices.addFromSearch")}
-            </Button>
-          </Link>
-        </div>
-      )}
+      {/* Add more button - now shown inside pending area when empty */}
 
       {/* Save button */}
       {isDirty && (

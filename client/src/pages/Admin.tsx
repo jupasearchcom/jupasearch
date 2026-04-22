@@ -33,7 +33,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import {
   Settings, Plus, Pencil, Trash2, Upload, Search,
-  Loader2, AlertCircle, ChevronLeft, ChevronRight,
+  Loader2, AlertCircle, ChevronLeft, ChevronRight, Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -55,7 +55,8 @@ interface CourseFormData {
   nameZhTw: string;
   nameZhCn: string;
   nameEn: string;
-  degreeType: string;
+  degreeType: string; // comma-separated for multi-type, e.g. "BA,BSc"
+  multiDegreeType: boolean; // toggle for multi-type mode
   institution: string;
   duration: string;
   qualification: string;
@@ -89,7 +90,7 @@ interface CourseFormData {
 
 const emptyForm: CourseFormData = {
   jupasCode: "", nameZhTw: "", nameZhCn: "", nameEn: "",
-  degreeType: "", institution: "", duration: "", qualification: "",
+  degreeType: "", multiDegreeType: false, institution: "", duration: "", qualification: "",
   scoringMethod: "", minRequirement: "", interviewArrangement: "",
   quota: "", lastYearMedian: "", lastYearQ1: "", lastYearAdmitted: "",
   lastYearGroupAAdmitted: "", lastYearGroupAApplicants: "", lastYearTotalApplicants: "",
@@ -109,6 +110,7 @@ function courseToForm(course: Course): CourseFormData {
     nameZhCn: course.nameZhCn ?? "",
     nameEn: course.nameEn ?? "",
     degreeType: course.degreeType ?? "",
+    multiDegreeType: (course.degreeType ?? "").includes(","),
     institution: course.institution,
     duration: course.duration?.toString() ?? "",
     qualification: course.qualification ?? "",
@@ -153,7 +155,9 @@ function formToInput(form: CourseFormData) {
     nameZhTw: form.nameZhTw,
     nameZhCn: form.nameZhCn || undefined,
     nameEn: form.nameEn || undefined,
-    degreeType: form.degreeType || undefined,
+    degreeType: form.multiDegreeType
+      ? (form.degreeType || undefined)
+      : (form.degreeType.split(",")[0] || undefined),
     institution: form.institution,
     duration: form.duration ? parseInt(form.duration) : undefined,
     qualification: (form.qualification || undefined) as any,
@@ -250,12 +254,54 @@ function CourseFormDialog({
             <Input value={form.jupasCode} onChange={(e) => set("jupasCode", e.target.value)} placeholder="e.g. JS1001" />
           </FormField>
           <FormField label="學位類型">
-            <Select value={form.degreeType} onValueChange={(v) => set("degreeType", v)}>
-              <SelectTrigger><SelectValue placeholder="選擇學位類型" /></SelectTrigger>
-              <SelectContent>
-                {DEGREE_TYPES.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-1">
+                <Switch
+                  checked={form.multiDegreeType}
+                  onCheckedChange={(v) => set("multiDegreeType", v)}
+                  id="multi-degree-toggle"
+                />
+                <Label htmlFor="multi-degree-toggle" className="text-xs text-muted-foreground cursor-pointer">
+                  允許多個學位類型（最多3個）
+                </Label>
+              </div>
+              {form.multiDegreeType ? (
+                <div className="flex flex-wrap gap-1">
+                  {DEGREE_TYPES.map((d) => {
+                    const selected = form.degreeType.split(",").filter(Boolean);
+                    const isSelected = selected.includes(d);
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => {
+                          const cur = form.degreeType.split(",").filter(Boolean);
+                          if (isSelected) {
+                            set("degreeType", cur.filter((x) => x !== d).join(","));
+                          } else if (cur.length < 3) {
+                            set("degreeType", [...cur, d].join(","));
+                          }
+                        }}
+                        className={`px-2 py-0.5 rounded text-xs border transition-colors ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background text-foreground border-border hover:border-primary"
+                        }`}
+                      >
+                        {d}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <Select value={form.degreeType.split(",")[0] ?? ""} onValueChange={(v) => set("degreeType", v)}>
+                  <SelectTrigger><SelectValue placeholder="選擇學位類型" /></SelectTrigger>
+                  <SelectContent>
+                    {DEGREE_TYPES.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
           </FormField>
           <div className="col-span-2">
             <FormField label="課程名稱（繁體中文）*">
@@ -819,6 +865,26 @@ export default function Admin() {
     },
   });
 
+  const exportAllQuery = trpc.courses.exportAll.useQuery(undefined, { enabled: false });
+
+  const handleExportJson = async () => {
+    try {
+      const result = await exportAllQuery.refetch();
+      if (!result.data) { toast.error("匯出失敗"); return; }
+      const json = JSON.stringify(result.data, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `jupasearch-courses-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`已匯出 ${result.data.length} 個課程`);
+    } catch {
+      toast.error("匯出失敗");
+    }
+  };
+
   if (!isAuthenticated || user?.role !== "admin") {
     return (
       <div className="container py-20 text-center">
@@ -865,6 +931,10 @@ export default function Admin() {
           <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowImport(true)}>
             <Upload className="w-4 h-4" />
             {t("admin.bulkImport")}
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleExportJson}>
+            <Download className="w-4 h-4" />
+            匯出 JSON
           </Button>
           <Button size="sm" className="gap-2" onClick={() => { setEditCourse(null); setShowForm(true); }}>
             <Plus className="w-4 h-4" />

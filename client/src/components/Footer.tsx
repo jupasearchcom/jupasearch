@@ -19,9 +19,9 @@ export default function Footer() {
   const contactTitle = language === "en" ? "Contact" : language === "zh-CN" ? "联系我们" : "聯絡我們";
 
   const copyrightNotice = {
-    "zh-TW": "如您認為本網頁內容涉及侵犯版權，若需刪除請來信 jupasearch.hk@gmail.com，我們將盡快處理。",
-    "zh-CN": "如您认为本网页内容涉及侵犯版权，若需删除请来信 jupasearch.hk@gmail.com，我们将尽快处理。",
-    en: "If you believe any content on this site infringes your copyright and wish to have it removed, please contact jupasearch.hk@gmail.com and we will respond promptly.",
+    "zh-TW": "如您認為本網頁內容涉及侵犯版權，若需刪除請來信 jupasearch.com@gmail.com，我們將盡快處理。",
+    "zh-CN": "如您认为本网页内容涉及侵犯版权，若需删除请来信 jupasearch.com@gmail.com，我们将尽快处理。",
+    en: "If you believe any content on this site infringes your copyright and wish to have it removed, please contact jupasearch.com@gmail.com and we will respond promptly.",
   };
 
   return (
@@ -101,11 +101,11 @@ export default function Footer() {
             </ul>
             <h4 className="font-semibold text-sm mb-2">{contactTitle}</h4>
             <a
-              href="mailto:jupasearch.hk@gmail.com"
+              href="mailto:jupasearch.com@gmail.com"
               className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               <Mail className="w-3.5 h-3.5" />
-              jupasearch.hk@gmail.com
+              jupasearch.com@gmail.com
             </a>
           </div>
         </div>
