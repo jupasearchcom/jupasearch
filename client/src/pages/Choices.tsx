@@ -24,6 +24,66 @@ function getLocalDSEScores(): DSEScoreData | null {
   }
 }
 
+// DSE grade order for comparison (mirrors Courses.tsx)
+const DSE_GRADE_ORDER_C = ["U", "1", "2", "3", "4", "5", "5*", "5**", "—"];
+function gradeAtLeastC(userGrade: string, minGrade: string): boolean {
+  if (!userGrade || userGrade === "—") return false;
+  const userIdx = DSE_GRADE_ORDER_C.indexOf(userGrade);
+  const minIdx = DSE_GRADE_ORDER_C.indexOf(minGrade);
+  if (userIdx === -1 || minIdx === -1) return userGrade === minGrade;
+  return userIdx >= minIdx;
+}
+
+function checkChoiceMeetsMinReq(course: Course, dse: DSEScoreData): boolean {
+  const req = course.minRequirement;
+  if (!req) return true;
+  const reqMap: Record<string, string> = { "2": "2", "3": "3", "4": "4", "5": "5", "A": "達標" };
+  if (req.length >= 3) {
+    if (!gradeAtLeastC(dse.chinese, reqMap[req[0]] ?? req[0])) return false;
+    if (!gradeAtLeastC(dse.english, reqMap[req[1]] ?? req[1])) return false;
+    if (!gradeAtLeastC(dse.math, reqMap[req[2]] ?? req[2])) return false;
+  }
+  const userSubjects: Record<string, string> = {
+    chinese: dse.chinese, english: dse.english, math: dse.math,
+    [dse.elective1Subject]: dse.elective1Grade,
+    [dse.elective2Subject]: dse.elective2Grade,
+    [dse.elective3Subject]: dse.elective3Grade,
+    [(dse as any).elective4Subject ?? ""]: (dse as any).elective4Grade ?? "—",
+  };
+  const formula = (course as any).scoreFormula;
+  if (formula?.minSubjectRequirements) {
+    for (const subReq of formula.minSubjectRequirements) {
+      const userGrade = userSubjects[subReq.subject];
+      if (!userGrade || !gradeAtLeastC(userGrade, subReq.minGrade)) return false;
+    }
+  }
+  if (formula?.electiveMinReq) {
+    const minGrade = formula.electiveMinReq === "33" ? "3" : "2";
+    const excludeM = formula.excludeM1M2FromElectiveMin === true;
+    const electiveCandidates: string[] = [];
+    if (!excludeM) {
+      if (dse.m1 && dse.m1 !== "—") electiveCandidates.push(dse.m1);
+      if (dse.m2 && dse.m2 !== "—") electiveCandidates.push(dse.m2);
+    }
+    if (dse.elective1Subject && dse.elective1Grade && dse.elective1Grade !== "—") electiveCandidates.push(dse.elective1Grade);
+    if (dse.elective2Subject && dse.elective2Grade && dse.elective2Grade !== "—") electiveCandidates.push(dse.elective2Grade);
+    if (dse.elective3Subject && dse.elective3Grade && dse.elective3Grade !== "—") electiveCandidates.push(dse.elective3Grade);
+    if ((dse as any).elective4Subject && (dse as any).elective4Grade && (dse as any).elective4Grade !== "—") electiveCandidates.push((dse as any).elective4Grade);
+    if (electiveCandidates.filter(g => gradeAtLeastC(g, minGrade)).length < 2) return false;
+  }
+  const specificReqs = (course as any).specificSubjectRequirements;
+  if (specificReqs?.groups && Array.isArray(specificReqs.groups)) {
+    for (const group of specificReqs.groups) {
+      const anyMeets = (group.subjects as string[]).some((subj) => {
+        const userGrade = userSubjects[subj];
+        return userGrade && gradeAtLeastC(userGrade, String(group.minGrade));
+      });
+      if (!anyMeets) return false;
+    }
+  }
+  return true;
+}
+
 function computeChoiceScorePct(myScore: number, refScore: number | null | undefined): number | null {
   if (!refScore || Number(refScore) === 0) return null;
   return (myScore - Number(refScore)) / Number(refScore) * 100;
@@ -153,6 +213,33 @@ export default function Choices() {
       setInitialized(true);
     }
   }, [authLoading, isAuthenticated, initialized]);
+
+  // Bug 3 fix: listen for cross-tab / same-tab localStorage changes to pendingIds
+  // Courses.tsx writes directly to localStorage; we need to pick that up here.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === LS_PENDING_KEY) {
+        try {
+          const updated: number[] = e.newValue ? JSON.parse(e.newValue) : [];
+          setPendingIds(updated);
+        } catch { /* ignore */ }
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  // Bug 3 fix: poll localStorage every 1s to catch same-page writes (storage event doesn't fire for same-page)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const latest = getLocalPending();
+      setPendingIds((prev) => {
+        if (JSON.stringify(prev) !== JSON.stringify(latest)) return latest;
+        return prev;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Sync from server when authenticated
   useEffect(() => {
@@ -448,47 +535,50 @@ export default function Choices() {
                 </div>
 
                 {course && (() => {
-                  const refScore = (course.scoringMethodChanged && course.expectedScore)
-                    ? Number(course.expectedScore)
-                    : (course.lastYearMedian ? Number(course.lastYearMedian) : null);
-                  // Compute my score from DSE scores if available
+                  // Bug 2 fix: always compare against lastYearMedian (not expectedScore)
+                  const medianRef = course.lastYearMedian ? Number(course.lastYearMedian) : null;
                   const myScoreVal = dseScores ? computeChoiceMyScore(course, dseScores) : null;
-                  const pct = (myScoreVal !== null && refScore) ? computeChoiceScorePct(myScoreVal, refScore) : null;
+                  // Use real minimum requirement check (mirrors Courses.tsx)
+                  const meetsReq = dseScores ? checkChoiceMeetsMinReq(course, dseScores) : true;
+                  const pct = (meetsReq && myScoreVal !== null && medianRef) ? computeChoiceScorePct(myScoreVal, medianRef) : null;
                   const pctColor = pct === null ? "" : pct >= 0 ? "text-emerald-600" : "text-rose-500";
+                  const pctDisplay = !dseScores
+                    ? null
+                    : !meetsReq
+                    ? "--"
+                    : pct !== null
+                    ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`
+                    : null;
+                  const pctDisplayColor = pct === null ? "text-muted-foreground" : pctColor;
                   return (
-                    <div className="hidden sm:flex items-center gap-4 text-center shrink-0">
-                      {myScoreVal !== null && (
+                    <>
+                      {/* Desktop: show in a row */}
+                      <div className="hidden sm:flex items-center gap-4 text-center shrink-0">
+                        {pctDisplay !== null && (
+                          <div>
+                            <div className={`text-xs font-medium ${pctDisplayColor}`}>{pctDisplay}</div>
+                            <div className="text-[10px] text-muted-foreground">
+                              {language === "en" ? "vs Median" : "與中位數"}
+                            </div>
+                          </div>
+                        )}
                         <div>
-                          <div className="text-xs font-medium flex items-center gap-0.5 justify-center">
-                            <span>{myScoreVal.toFixed(1)}</span>
-                            {pct !== null && (
-                              <span className={`text-[10px] ${pctColor}`}>
-                                ({pct >= 0 ? "+" : ""}{pct.toFixed(1)}%)
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground">
-                            {language === "en" ? "My Score" : "我的分數"}
-                          </div>
-                        </div>
-                      )}
-                      <div>
-                        <div className="text-xs font-medium">
-                          {course.scoringMethodChanged && course.expectedScore
-                            ? String(course.expectedScore)
-                            : (course.lastYearMedian ? String(course.lastYearMedian) : "—")}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {course.scoringMethodChanged && course.expectedScore
-                            ? (language === "en" ? "Expected" : "預期分數")
-                            : t("courses.col.median")}
+                          <div className="text-xs font-medium">{course.quota ?? "—"}</div>
+                          <div className="text-[10px] text-muted-foreground">{t("courses.col.quota")}</div>
                         </div>
                       </div>
-                      <div>
-                        <div className="text-xs font-medium">{course.quota ?? "—"}</div>
-                        <div className="text-[10px] text-muted-foreground">{t("courses.col.quota")}</div>
+                      {/* Mobile: show on a new line below course name */}
+                      <div className="sm:hidden w-full flex items-center gap-3 mt-1 text-xs">
+                        {pctDisplay !== null && (
+                          <span className={`font-medium ${pctDisplayColor}`}>
+                            {language === "en" ? "vs Median: " : "與中位數: "}{pctDisplay}
+                          </span>
+                        )}
+                        <span className="text-muted-foreground">
+                          {language === "en" ? "Quota: " : "學額: "}{course.quota ?? "—"}
+                        </span>
                       </div>
-                    </div>
+                    </>
                   );
                 })()}
 

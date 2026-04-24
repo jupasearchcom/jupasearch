@@ -29,6 +29,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { TapTooltip } from "@/components/TapTooltip";
 import {
   Search,
   SlidersHorizontal,
@@ -532,32 +533,32 @@ function CourseCard({
       meetsMinReq === false && "border-red-300/50 dark:border-red-800/50"
     )}>
       {/* Does not meet min requirement badge (top-right corner) */}
-      {meetsMinReq === false && dseScores && (() => {
+           {meetsMinReq === false && dseScores && (() => {
         const failReasons = getMinReqFailReasons(course, dseScores);
         return (
           <div className="absolute top-2 right-2 z-10">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center gap-1 bg-red-500/15 text-red-600 dark:text-red-400 text-xs px-1.5 py-0.5 rounded-full cursor-help">
+            <TapTooltip
+              contentClassName="max-w-[260px] text-xs"
+              trigger={
+                <div className="flex items-center gap-1 bg-red-500/15 text-red-600 dark:text-red-400 text-xs px-1.5 py-0.5 rounded-full cursor-pointer select-none">
                   <AlertTriangle className="w-3 h-3" />
                   <span className="hidden sm:inline">
                     {language === "en" ? "Below min. req." : language === "zh-CN" ? "不符合最低要求" : "不符合最低要求"}
                   </span>
                 </div>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-[260px] text-xs">
-                <div className="font-medium mb-1">
-                  {language === "en" ? "Requirements not met:" : language === "zh-CN" ? "不符合项目：" : "不符合項目："}
-                </div>
-                {failReasons.length > 0 ? (
-                  <ul className="space-y-0.5 list-disc list-inside">
-                    {failReasons.map((r, i) => <li key={i}>{r}</li>)}
-                  </ul>
-                ) : (
-                  <span>{language === "en" ? "Does not meet minimum requirements" : "不符合最低入學要求"}</span>
-                )}
-              </TooltipContent>
-            </Tooltip>
+              }
+            >
+              <div className="font-medium mb-1">
+                {language === "en" ? "Requirements not met:" : language === "zh-CN" ? "不符合项目：" : "不符合項目："}
+              </div>
+              {failReasons.length > 0 ? (
+                <ul className="space-y-0.5 list-disc list-inside">
+                  {failReasons.map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+              ) : (
+                <span>{language === "en" ? "Does not meet minimum requirements" : "不符合最低入學要求"}</span>
+              )}
+            </TapTooltip>
           </div>
         );
       })()}
@@ -664,33 +665,31 @@ function CourseCard({
                       ({formatPct(scorePct)})
                     </span>
                   )}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="cursor-help text-[10px] text-muted-foreground ml-0.5">*</span>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-[260px] text-xs space-y-1">
-                      <div className="font-medium">
-                        {language === "en" ? "Score % Deviation" : language === "zh-CN" ? "分数偏差百分比" : "分數偏差百分比"}
-                      </div>
-                      <div>
-                        {language === "en"
-                          ? "Formula: (My Score − Reference) ÷ Reference × 100%"
-                          : language === "zh-CN"
-                          ? "公式：（我的分数 − 参考分数）÷ 参考分数 × 100%"
-                          : "公式：（我的分數 − 參考分數）÷ 參考分數 × 100%"}
-                      </div>
-                      <div className="text-muted-foreground">
-                        {language === "en"
-                          ? `Reference: ${course.scoringMethodChanged && course.expectedScore ? `Expected Score (${course.expectedScore})` : `Last Year Median (${course.lastYearMedian ?? "N/A"})`}`
-                          : language === "zh-CN"
-                          ? `参考分数：${course.scoringMethodChanged && course.expectedScore ? `预期分数（${course.expectedScore}）` : `去年中位数（${course.lastYearMedian ?? "N/A"}）`}`
-                          : `參考分數：${course.scoringMethodChanged && course.expectedScore ? `預期分數（${course.expectedScore}）` : `去年中位數（${course.lastYearMedian ?? "N/A"}）`}`}
-                      </div>
-                      <div className="text-muted-foreground">
-                        {language === "en" ? "+ = above reference, − = below reference" : language === "zh-CN" ? "+ = 高于参考分数，− = 低于参考分数" : "+ = 高於參考分數，− = 低於參考分數"}
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
+                  <TapTooltip
+                    contentClassName="max-w-[260px] text-xs space-y-1"
+                    trigger={<span className="cursor-pointer select-none text-[10px] text-muted-foreground ml-0.5">*</span>}
+                  >
+                    <div className="font-medium">
+                      {language === "en" ? "Score % Deviation" : language === "zh-CN" ? "分数偏差百分比" : "分數偏差百分比"}
+                    </div>
+                    <div>
+                      {language === "en"
+                        ? "Formula: (My Score − Reference) ÷ Reference × 100%"
+                        : language === "zh-CN"
+                        ? "公式：（我的分数 − 参考分数）÷ 参考分数 × 100%"
+                        : "公式：（我的分數 − 參考分數）÷ 參考分數 × 100%"}
+                    </div>
+                    <div className="text-muted-foreground">
+                      {language === "en"
+                        ? `Reference: ${course.scoringMethodChanged && course.expectedScore ? `Expected Score (${course.expectedScore})` : `Last Year Median (${course.lastYearMedian ?? "N/A"})`}`
+                        : language === "zh-CN"
+                        ? `参考分数：${course.scoringMethodChanged && course.expectedScore ? `预期分数（${course.expectedScore}）` : `去年中位数（${course.lastYearMedian ?? "N/A"}）`}`
+                        : `參考分數：${course.scoringMethodChanged && course.expectedScore ? `預期分數（${course.expectedScore}）` : `去年中位數（${course.lastYearMedian ?? "N/A"}）`}`}
+                    </div>
+                    <div className="text-muted-foreground">
+                      {language === "en" ? "+ = above reference, − = below reference" : language === "zh-CN" ? "+ = 高于参考分数，− = 低于参考分数" : "+ = 高於參考分數，− = 低於參考分數"}
+                    </div>
+                  </TapTooltip>
                 </>
               )}
           </span>
@@ -703,22 +702,22 @@ function CourseCard({
             <span className="font-medium">
               {language === "en" ? "My Score" : language === "zh-CN" ? "我的分数" : "我的分數"}
             </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="text-[10px] cursor-help underline decoration-dotted">
+            <TapTooltip
+              contentClassName="max-w-[280px] text-xs space-y-1"
+              trigger={
+                <span className="text-[10px] cursor-pointer select-none underline decoration-dotted">
                   {language === "en" ? "Does not meet min. req." : language === "zh-CN" ? "不符合最低要求" : "不符合最低要求"}
                 </span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-[280px] text-xs space-y-1">
-                <div className="font-medium mb-1">
-                  {language === "en" ? "Reasons:" : language === "zh-CN" ? "不符合原因：" : "不符合原因："}
-                </div>
-                {failReasons.length > 0
-                  ? failReasons.map((r, i) => <div key={i}>• {r}</div>)
-                  : <div>{language === "en" ? "Minimum requirement not met" : "不符合最低入學要求"}</div>
-                }
-              </TooltipContent>
-            </Tooltip>
+              }
+            >
+              <div className="font-medium mb-1">
+                {language === "en" ? "Reasons:" : language === "zh-CN" ? "不符合原因：" : "不符合原因："}
+              </div>
+              {failReasons.length > 0
+                ? failReasons.map((r, i) => <div key={i}>• {r}</div>)
+                : <div>{language === "en" ? "Minimum requirement not met" : "不符合最低入學要求"}</div>
+              }
+            </TapTooltip>
           </div>
         );
       })()}
