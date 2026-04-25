@@ -164,8 +164,21 @@ function computeMyScore(course: Course, dse: DSEScoreData): number | null {
     .map(([k, v]) => ({ subject: k, score: v }));
 
   const required = new Set(formula.required ?? []);
+  // requiredBestOf: array of subject arrays, each group contributes the best 1 subject
+  // e.g. requiredBestOf: [["m1","m2"]] means take the better of M1/M2 as a required entry
+  const requiredBestOfGroups: string[][] = formula.requiredBestOf ?? [];
+  const requiredBestOfSubjects = new Set(requiredBestOfGroups.flat());
+  const requiredBestOfEntries: Array<{ subject: string; score: number }> = [];
+  for (const group of requiredBestOfGroups) {
+    const groupEntries = available.filter(e => group.includes(e.subject));
+    if (groupEntries.length > 0) {
+      groupEntries.sort((a, b) => b.score - a.score);
+      requiredBestOfEntries.push(groupEntries[0]);
+    }
+  }
   const requiredEntries = available.filter(e => required.has(e.subject));
-  const optionalEntries = available.filter(e => !required.has(e.subject));
+  const allRequiredEntries = [...requiredEntries, ...requiredBestOfEntries];
+  const optionalEntries = available.filter(e => !required.has(e.subject) && !requiredBestOfSubjects.has(e.subject));
   optionalEntries.sort((a, b) => b.score - a.score);
 
   // ── Step 5: Best N / 3C+2X selection ─────────────────────────────────────────
@@ -174,10 +187,10 @@ function computeMyScore(course: Course, dse: DSEScoreData): number | null {
 
   if (method === "best5" || method === "best6" || method === "best7" || method === "best4") {
     const n = method === "best4" ? 4 : method === "best6" ? 6 : method === "best7" ? 7 : 5;
-    // Required subjects are ALWAYS included; fill remaining slots with best optional subjects
-    const remainingSlots = Math.max(0, n - requiredEntries.length);
+    // Required subjects (incl. requiredBestOf) are ALWAYS included; fill remaining slots with best optional subjects
+    const remainingSlots = Math.max(0, n - allRequiredEntries.length);
     const topOptional = optionalEntries.slice(0, remainingSlots);
-    selectedEntries = [...requiredEntries, ...topOptional];
+    selectedEntries = [...allRequiredEntries, ...topOptional];
 
     // JS4501/JS4502 special: if Best-N slot is worse than M1/M2, replace with 0.5×slot + 0.5×M1M2
     if (js4501Special && selectedEntries.length === n) {
@@ -581,7 +594,7 @@ function CourseCard({
         )}
         {course.isNew && <span className="badge-new">{t("courses.new")}</span>}
         {course.scoringMethodChanged && <span className="badge-changed">{t("courses.scoringChanged")}</span>}
-        {course.groupAOnly && <span className="badge-groupA">{t("courses.groupAOnly")}</span>}
+        {/* groupAOnly badge removed from card - shown in course detail only */}
       </div>
 
       {/* Course name */}

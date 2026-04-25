@@ -90,8 +90,19 @@ function computeMyScoreCmp(course: Course, dse: DSEScoreData): number | null {
   if (js4501Special) { excluded.add("m1"); excluded.add("m2"); }
   const available = Object.entries(weightedMap).filter(([k]) => !excluded.has(k)).map(([k, v]) => ({ subject: k, score: v }));
   const required = new Set(formula.required ?? []);
+  const requiredBestOfGroupsCmp: string[][] = formula.requiredBestOf ?? [];
+  const requiredBestOfSubjectsCmp = new Set(requiredBestOfGroupsCmp.flat());
+  const requiredBestOfEntriesCmp: Array<{ subject: string; score: number }> = [];
+  for (const group of requiredBestOfGroupsCmp) {
+    const groupEntries = available.filter(e => group.includes(e.subject));
+    if (groupEntries.length > 0) {
+      groupEntries.sort((a, b) => b.score - a.score);
+      requiredBestOfEntriesCmp.push(groupEntries[0]);
+    }
+  }
   const requiredEntries = available.filter(e => required.has(e.subject));
-  const optionalEntries = available.filter(e => !required.has(e.subject));
+  const allRequiredEntriesCmp = [...requiredEntries, ...requiredBestOfEntriesCmp];
+  const optionalEntries = available.filter(e => !required.has(e.subject) && !requiredBestOfSubjectsCmp.has(e.subject));
   optionalEntries.sort((a, b) => b.score - a.score);
 
   // Step 5: Best N / 3C+2X selection
@@ -99,10 +110,10 @@ function computeMyScoreCmp(course: Course, dse: DSEScoreData): number | null {
   let selectedEntries: Array<{ subject: string; score: number }> = [];
   if (method === "best5" || method === "best6" || method === "best7" || method === "best4") {
     const n = method === "best4" ? 4 : method === "best6" ? 6 : method === "best7" ? 7 : 5;
-    // Required subjects are ALWAYS included; fill remaining slots with best optional subjects
-    const remainingSlots = Math.max(0, n - requiredEntries.length);
+    // Required subjects (incl. requiredBestOf) are ALWAYS included; fill remaining slots with best optional subjects
+    const remainingSlots = Math.max(0, n - allRequiredEntriesCmp.length);
     const topOptional = optionalEntries.slice(0, remainingSlots);
-    selectedEntries = [...requiredEntries, ...topOptional];
+    selectedEntries = [...allRequiredEntriesCmp, ...topOptional];
     // JS4501/JS4502 special
     if (js4501Special && selectedEntries.length === n) {
       const m1Score = weightedMap["m1"] ?? 0;

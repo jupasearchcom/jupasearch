@@ -516,7 +516,8 @@ export default function Choices() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                  {/* Line 1: JUPAS code + degree type + institution */}
+                  <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                     {course?.jupasCode && (
                       <span className="text-xs font-mono text-muted-foreground">{course.jupasCode}</span>
                     )}
@@ -525,60 +526,68 @@ export default function Choices() {
                         {course.degreeType}
                       </span>
                     )}
+                    {course && (
+                      <span className="text-xs text-muted-foreground">{getInstitutionName(course)}</span>
+                    )}
                   </div>
+                  {/* Line 2: Course name */}
                   <Link href={`/courses/${choice.courseId}`}>
                     <p className="text-sm font-medium hover:underline cursor-pointer truncate">{name}</p>
                   </Link>
-                  {course && (
-                    <p className="text-xs text-muted-foreground">{getInstitutionName(course)}</p>
-                  )}
+                  {/* Line 3 (mobile only): quota + pct */}
+                  {course && (() => {
+                    const medianRef = course.lastYearMedian ? Number(course.lastYearMedian) : null;
+                    const myScoreVal = dseScores ? computeChoiceMyScore(course, dseScores) : null;
+                    const meetsReq = dseScores ? checkChoiceMeetsMinReq(course, dseScores) : true;
+                    const pct = (meetsReq && myScoreVal !== null && medianRef) ? computeChoiceScorePct(myScoreVal, medianRef) : null;
+                    const pctColor = pct === null ? "text-muted-foreground" : pct >= 0 ? "text-emerald-600" : "text-rose-500";
+                    const pctDisplay = !dseScores
+                      ? (language === "en" ? "Enter DSE scores" : "請輸入成績")
+                      : !meetsReq
+                      ? "--"
+                      : pct !== null
+                      ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`
+                      : "—";
+                    const pctDisplayColor = !dseScores ? "text-muted-foreground/60" : pctColor;
+                    return (
+                      <div className="sm:hidden flex items-center gap-3 mt-0.5 text-xs">
+                        <span className="text-muted-foreground">
+                          {language === "en" ? "Quota: " : "學額: "}{course.quota ?? "—"}
+                        </span>
+                        <span className={`font-medium ${pctDisplayColor}`}>{pctDisplay}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {course && (() => {
-                  // Bug 2 fix: always compare against lastYearMedian (not expectedScore)
+                  // Desktop: show pct + quota in right column
                   const medianRef = course.lastYearMedian ? Number(course.lastYearMedian) : null;
                   const myScoreVal = dseScores ? computeChoiceMyScore(course, dseScores) : null;
-                  // Use real minimum requirement check (mirrors Courses.tsx)
                   const meetsReq = dseScores ? checkChoiceMeetsMinReq(course, dseScores) : true;
                   const pct = (meetsReq && myScoreVal !== null && medianRef) ? computeChoiceScorePct(myScoreVal, medianRef) : null;
-                  const pctColor = pct === null ? "" : pct >= 0 ? "text-emerald-600" : "text-rose-500";
+                  const pctColor = pct === null ? "text-muted-foreground" : pct >= 0 ? "text-emerald-600" : "text-rose-500";
                   const pctDisplay = !dseScores
-                    ? null
+                    ? (language === "en" ? "Enter scores" : "請輸入成績")
                     : !meetsReq
                     ? "--"
                     : pct !== null
                     ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`
-                    : null;
-                  const pctDisplayColor = pct === null ? "text-muted-foreground" : pctColor;
+                    : "—";
+                  const pctDisplayColor = !dseScores ? "text-muted-foreground/60" : pctColor;
                   return (
-                    <>
-                      {/* Desktop: show in a row */}
-                      <div className="hidden sm:flex items-center gap-4 text-center shrink-0">
-                        {pctDisplay !== null && (
-                          <div>
-                            <div className={`text-xs font-medium ${pctDisplayColor}`}>{pctDisplay}</div>
-                            <div className="text-[10px] text-muted-foreground">
-                              {language === "en" ? "vs Median" : "與中位數"}
-                            </div>
-                          </div>
-                        )}
-                        <div>
-                          <div className="text-xs font-medium">{course.quota ?? "—"}</div>
-                          <div className="text-[10px] text-muted-foreground">{t("courses.col.quota")}</div>
+                    <div className="hidden sm:flex items-center gap-4 text-center shrink-0">
+                      <div>
+                        <div className={`text-xs font-medium ${pctDisplayColor}`}>{pctDisplay}</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {language === "en" ? "vs Median" : "與中位數"}
                         </div>
                       </div>
-                      {/* Mobile: show on a new line below course name */}
-                      <div className="sm:hidden w-full flex items-center gap-3 mt-1 text-xs">
-                        {pctDisplay !== null && (
-                          <span className={`font-medium ${pctDisplayColor}`}>
-                            {language === "en" ? "vs Median: " : "與中位數: "}{pctDisplay}
-                          </span>
-                        )}
-                        <span className="text-muted-foreground">
-                          {language === "en" ? "Quota: " : "學額: "}{course.quota ?? "—"}
-                        </span>
+                      <div>
+                        <div className="text-xs font-medium">{course.quota ?? "—"}</div>
+                        <div className="text-[10px] text-muted-foreground">{t("courses.col.quota")}</div>
                       </div>
-                    </>
+                    </div>
                   );
                 })()}
 

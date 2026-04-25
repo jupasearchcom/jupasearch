@@ -241,8 +241,19 @@ export const appRouter = router({
 
           // Required subjects must be included
           const required = new Set(formula.required ?? []);
+          const requiredBestOfGroupsSvr: string[][] = formula.requiredBestOf ?? [];
+          const requiredBestOfSubjectsSvr = new Set(requiredBestOfGroupsSvr.flat());
+          const requiredBestOfEntriesSvr: Array<{ subject: string; score: number }> = [];
+          for (const group of requiredBestOfGroupsSvr) {
+            const groupEntries = available.filter(e => group.includes(e.subject));
+            if (groupEntries.length > 0) {
+              groupEntries.sort((a: any, b: any) => b.score - a.score);
+              requiredBestOfEntriesSvr.push(groupEntries[0]);
+            }
+          }
           const requiredEntries = available.filter(e => required.has(e.subject));
-          const optionalEntries = available.filter(e => !required.has(e.subject));
+          const allRequiredEntriesSvr = [...requiredEntries, ...requiredBestOfEntriesSvr];
+          const optionalEntries = available.filter(e => !required.has(e.subject) && !requiredBestOfSubjectsSvr.has(e.subject));
 
           // Sort optional by score desc
           optionalEntries.sort((a, b) => b.score - a.score);
@@ -252,10 +263,10 @@ export const appRouter = router({
 
           if (method === "best5" || method === "best4" || method === "best6" || method === "best7") {
             const n = method === "best4" ? 4 : method === "best6" ? 6 : method === "best7" ? 7 : 5;
-            // Required subjects are ALWAYS included; fill remaining slots with best optional subjects
-            const remainingSlots = Math.max(0, n - requiredEntries.length);
+            // Required subjects (incl. requiredBestOf) are ALWAYS included; fill remaining slots with best optional subjects
+            const remainingSlots = Math.max(0, n - allRequiredEntriesSvr.length);
             const topOptional = optionalEntries.slice(0, remainingSlots);
-            total = [...requiredEntries, ...topOptional].reduce((s, e) => s + e.score, 0);
+            total = [...allRequiredEntriesSvr, ...topOptional].reduce((s, e) => s + e.score, 0);
           } else if (method === "3c2x") {
             // 3C+2X: 3 core subjects + best 2 electives
             const coreSubjects = new Set(formula.coreSubjects ?? ["chinese", "english", "math"]);
