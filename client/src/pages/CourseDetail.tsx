@@ -180,7 +180,6 @@ export default function CourseDetail() {
               )}
               {course.isNew && <span className="badge-new">{t("courses.new")}</span>}
               {course.scoringMethodChanged && <span className="badge-changed">{t("courses.scoringChanged")}</span>}
-              {course.groupAOnly && <span className="badge-groupA">{t("courses.groupAOnly")}</span>}
             </div>
             <h1 className="text-2xl font-bold mb-1" style={{ fontFamily: "'Playfair Display', 'Noto Serif TC', serif" }}>
               {name}

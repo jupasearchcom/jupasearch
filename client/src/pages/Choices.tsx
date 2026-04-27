@@ -536,7 +536,9 @@ export default function Choices() {
                   </Link>
                   {/* Line 3 (mobile only): quota + pct */}
                   {course && (() => {
-                    const medianRef = course.lastYearMedian ? Number(course.lastYearMedian) : null;
+                    const medianRef = (course.scoringMethodChanged && course.expectedScore)
+                      ? Number(course.expectedScore)
+                      : (course.lastYearMedian ? Number(course.lastYearMedian) : null);
                     const myScoreVal = dseScores ? computeChoiceMyScore(course, dseScores) : null;
                     const meetsReq = dseScores ? checkChoiceMeetsMinReq(course, dseScores) : true;
                     const pct = (meetsReq && myScoreVal !== null && medianRef) ? computeChoiceScorePct(myScoreVal, medianRef) : null;
@@ -562,7 +564,9 @@ export default function Choices() {
 
                 {course && (() => {
                   // Desktop: show pct + quota in right column
-                  const medianRef = course.lastYearMedian ? Number(course.lastYearMedian) : null;
+                  const medianRef = (course.scoringMethodChanged && course.expectedScore)
+                    ? Number(course.expectedScore)
+                    : (course.lastYearMedian ? Number(course.lastYearMedian) : null);
                   const myScoreVal = dseScores ? computeChoiceMyScore(course, dseScores) : null;
                   const meetsReq = dseScores ? checkChoiceMeetsMinReq(course, dseScores) : true;
                   const pct = (meetsReq && myScoreVal !== null && medianRef) ? computeChoiceScorePct(myScoreVal, medianRef) : null;

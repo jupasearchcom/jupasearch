@@ -253,3 +253,7 @@
 - [x] 2. 計分公式 JSON 新增 requiredBestOf 欄位（幾科中取最好1科計入），Courses.tsx / Compare.tsx / routers.ts 三處同步更新
 - [x] 3. 志願模擬課程卡片顯示與去年中位數比較的百分數；未輸入成績顯示「請輸入成績」，不符合要求顯示--
 - [x] 4. 手機版志願模擬課程卡片格式重構：第一行 JUPAS code + 學位類型 + 院校，第二行課程名稱，第三行（手機）學額 + 百分比
+
+## Bug Fix Batch 18 (2026-04-27)
+- [x] 1. CourseDetail.tsx 頂部 badge 移除「去年只取錄組別A」標示，只保留基本資料表格中的「是/否」顯示
+- [x] 2. Choices.tsx 志願模擬百分數：修復 medianRef 計算邏輯，與 Courses.tsx 完全一致（優先 scoringMethodChanged+expectedScore，其次 lastYearMedian）；桌面版和手機版同步修復
