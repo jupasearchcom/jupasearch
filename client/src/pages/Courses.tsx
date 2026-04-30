@@ -84,6 +84,45 @@ function dseGradeToScore(grade: string, scale?: string): number {
   return map[grade] ?? 0;
 }
 
+// ─── Backward-compat: map old Chinese elective names → English codes ─────────
+// Needed for cookies saved before Batch 19 migration
+const ELECTIVE_ZH_TO_CODE: Record<string, string> = {
+  "物理": "physics", "化學": "chemistry", "生物": "biology",
+  "組合科學（物理、化學）": "combined_sci_phy_chem",
+  "組合科學（化學、生物）": "combined_sci_chem_bio",
+  "組合科學（物理、生物）": "combined_sci_phy_bio",
+  "綜合科學": "integrated_science",
+  "資訊及通訊科技": "ict", "設計與應用科技": "dat",
+  "健康管理與社會關懷": "hmsc",
+  "科技與生活（服裝、成衣與紡織）": "tal_clothing",
+  "科技與生活（食物科學與科技）": "tal_food",
+  "企業、會計與財務概論（會計選修部分）": "bafs_accounting",
+  "企業、會計與財務概論（商業管理選修部分）": "bafs_business",
+  "企業、會計與財務概論": "bafs",
+  "經濟": "economics", "地理": "geography", "歷史": "history",
+  "中國歷史": "chinese_history", "倫理與宗教": "ethics",
+  "中國文學": "chinese_lit", "英語文學": "english_lit",
+  "旅遊與款待": "tourism", "視覺藝術": "va", "音樂": "music", "體育": "pe",
+  // ZH-CN variants
+  "化学": "chemistry", "组合科学（物理、化学）": "combined_sci_phy_chem",
+  "组合科学（化学、生物）": "combined_sci_chem_bio",
+  "组合科学（物理、生物）": "combined_sci_phy_bio",
+  "综合科学": "integrated_science", "资讯及通讯科技": "ict",
+  "设计与应用科技": "dat", "健康管理与社会关顾": "hmsc",
+  "科技与生活（服装、成衣与纵织）": "tal_clothing",
+  "科技与生活（食物科学与科技）": "tal_food",
+  "企业、会计与财务概论（会计选修部分）": "bafs_accounting",
+  "企业、会计与财务概论（商业管理选修部分）": "bafs_business",
+  "企业、会计与财务概论": "bafs",
+  "经济": "economics", "历史": "history",
+  "中国历史": "chinese_history", "伦理与宗教": "ethics",
+  "中国文学": "chinese_lit", "英语文学": "english_lit",
+  "旅游与款待": "tourism", "视觉艺术": "va", "音乐": "music", "体育": "pe",
+};
+function normalizeElectiveCode(subj: string): string {
+  return ELECTIVE_ZH_TO_CODE[subj] ?? subj;
+}
+
 // Institutions where Lv2 subjects are excluded from scoring
 const LV2_EXCLUDE_INSTITUTIONS = ["香港大學", "香港科技大學", "香港理工大學"];
 
@@ -101,7 +140,7 @@ function computeMyScore(course: Course, dse: DSEScoreData): number | null {
   if (dse.m2 && dse.m2 !== "—") rawMap["m2"] = dseGradeToScore(dse.m2, scale);
   [[dse.elective1Subject, dse.elective1Grade],[dse.elective2Subject, dse.elective2Grade],
    [dse.elective3Subject, dse.elective3Grade],[(dse as any).elective4Subject, (dse as any).elective4Grade]]
-    .forEach(([subj, grade]) => { if (subj) rawMap[subj] = dseGradeToScore(grade, scale); });
+    .forEach(([subj, grade]) => { if (subj) rawMap[normalizeElectiveCode(subj)] = dseGradeToScore(grade, scale); });
   if (dse.appliedLearningSubject) {
     const alMap: Record<string, number> = { "達標並表現優異（I）": 3, "達標並表現優異（II）": 4, "達標": 2, "未達標": 0 };
     rawMap[dse.appliedLearningSubject] = alMap[dse.appliedLearningGrade] ?? 0;
@@ -127,7 +166,7 @@ function computeMyScore(course: Course, dse: DSEScoreData): number | null {
       if (k === "m2") return dse.m2;
       const pairs = [[dse.elective1Subject, dse.elective1Grade],[dse.elective2Subject, dse.elective2Grade],
         [dse.elective3Subject, dse.elective3Grade],[(dse as any).elective4Subject, (dse as any).elective4Grade]];
-      const found = pairs.find(([s]) => s === k);
+      const found = pairs.find(([s]) => s && normalizeElectiveCode(s) === k);
       return found ? found[1] : null;
     })();
     const isLv2OrBelow = rawGrade && ["1", "2", "U"].includes(rawGrade);
