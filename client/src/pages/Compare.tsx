@@ -128,16 +128,23 @@ function computeMyScoreCmp(course: Course, dse: DSEScoreData): number | null {
   const requiredBestOfGroupsCmp: string[][] = formula.requiredBestOf ?? [];
   const requiredBestOfSubjectsCmp = new Set(requiredBestOfGroupsCmp.flat());
   const requiredBestOfEntriesCmp: Array<{ subject: string; score: number }> = [];
+  const requiredBestOfNonBestCmp = new Set<string>();
   for (const group of requiredBestOfGroupsCmp) {
     const groupEntries = available.filter(e => group.includes(e.subject));
     if (groupEntries.length > 0) {
       groupEntries.sort((a, b) => b.score - a.score);
       requiredBestOfEntriesCmp.push(groupEntries[0]);
+      for (const e of groupEntries.slice(1)) requiredBestOfNonBestCmp.add(e.subject);
     }
   }
   const requiredEntries = available.filter(e => required.has(e.subject));
   const allRequiredEntriesCmp = [...requiredEntries, ...requiredBestOfEntriesCmp];
-  const optionalEntries = available.filter(e => !required.has(e.subject) && !requiredBestOfSubjectsCmp.has(e.subject));
+  const allRequiredSubjectsCmp = new Set(allRequiredEntriesCmp.map(e => e.subject));
+  const optionalEntries = available.filter(e =>
+    !required.has(e.subject) &&
+    !allRequiredSubjectsCmp.has(e.subject) &&
+    (!requiredBestOfSubjectsCmp.has(e.subject) || requiredBestOfNonBestCmp.has(e.subject))
+  );
   optionalEntries.sort((a, b) => b.score - a.score);
 
   // Step 5: Best N / 3C+2X selection

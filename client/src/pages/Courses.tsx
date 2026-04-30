@@ -203,21 +203,31 @@ function computeMyScore(course: Course, dse: DSEScoreData): number | null {
     .map(([k, v]) => ({ subject: k, score: v }));
 
   const required = new Set(formula.required ?? []);
-  // requiredBestOf: array of subject arrays, each group contributes the best 1 subject
-  // e.g. requiredBestOf: [["m1","m2"]] means take the better of M1/M2 as a required entry
+  // requiredBestOf: array of subject arrays, each group MUST contribute its best 1 subject.
+  // Non-best subjects in the group are returned to the optional pool so they can still
+  // be selected by the best-N algorithm if their score is high enough.
   const requiredBestOfGroups: string[][] = formula.requiredBestOf ?? [];
   const requiredBestOfSubjects = new Set(requiredBestOfGroups.flat());
   const requiredBestOfEntries: Array<{ subject: string; score: number }> = [];
+  const requiredBestOfNonBest = new Set<string>(); // non-best subjects returned to optional pool
   for (const group of requiredBestOfGroups) {
     const groupEntries = available.filter(e => group.includes(e.subject));
     if (groupEntries.length > 0) {
       groupEntries.sort((a, b) => b.score - a.score);
       requiredBestOfEntries.push(groupEntries[0]);
+      // Non-best subjects go back to optional pool
+      for (const e of groupEntries.slice(1)) requiredBestOfNonBest.add(e.subject);
     }
   }
   const requiredEntries = available.filter(e => required.has(e.subject));
   const allRequiredEntries = [...requiredEntries, ...requiredBestOfEntries];
-  const optionalEntries = available.filter(e => !required.has(e.subject) && !requiredBestOfSubjects.has(e.subject));
+  const allRequiredSubjects = new Set(allRequiredEntries.map(e => e.subject));
+  // Optional pool: exclude required/requiredBestOf-best subjects, but include non-best subjects from requiredBestOf groups
+  const optionalEntries = available.filter(e =>
+    !required.has(e.subject) &&
+    !allRequiredSubjects.has(e.subject) &&
+    (!requiredBestOfSubjects.has(e.subject) || requiredBestOfNonBest.has(e.subject))
+  );
   optionalEntries.sort((a, b) => b.score - a.score);
 
   // ── Step 5: Best N / 3C+2X selection ─────────────────────────────────────────

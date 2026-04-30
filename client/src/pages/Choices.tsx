@@ -204,16 +204,23 @@ function computeChoiceMyScore(course: Course, dse: DSEScoreData): number | null 
   const requiredBestOfGroups: string[][] = formula.requiredBestOf ?? [];
   const requiredBestOfSubjects = new Set(requiredBestOfGroups.flat());
   const requiredBestOfEntries: Array<{ subject: string; score: number }> = [];
+  const requiredBestOfNonBestCh = new Set<string>();
   for (const group of requiredBestOfGroups) {
     const groupEntries = available.filter(e => group.includes(e.subject));
     if (groupEntries.length > 0) {
       groupEntries.sort((a, b) => b.score - a.score);
       requiredBestOfEntries.push(groupEntries[0]);
+      for (const e of groupEntries.slice(1)) requiredBestOfNonBestCh.add(e.subject);
     }
   }
   const requiredEntries = available.filter(e => required.has(e.subject));
   const allRequiredEntries = [...requiredEntries, ...requiredBestOfEntries];
-  const optionalEntries = available.filter(e => !required.has(e.subject) && !requiredBestOfSubjects.has(e.subject));
+  const allRequiredSubjectsCh = new Set(allRequiredEntries.map(e => e.subject));
+  const optionalEntries = available.filter(e =>
+    !required.has(e.subject) &&
+    !allRequiredSubjectsCh.has(e.subject) &&
+    (!requiredBestOfSubjects.has(e.subject) || requiredBestOfNonBestCh.has(e.subject))
+  );
   optionalEntries.sort((a, b) => b.score - a.score);
 
   // Step 5: Best N / 3C+2X selection
