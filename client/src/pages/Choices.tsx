@@ -13,12 +13,17 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Course } from "../../../drizzle/schema";
 
-const DSE_LS_KEY = "jupasearch_dse_scores";
+const DSE_COOKIE_KEY = "jupasearch_dse_scores";
 
 function getLocalDSEScores(): DSEScoreData | null {
   try {
-    const raw = localStorage.getItem(DSE_LS_KEY);
-    return raw ? JSON.parse(raw) : null;
+    const raw = document.cookie.split("; ").find((r) => r.startsWith(DSE_COOKIE_KEY + "="));
+    if (!raw) return null;
+    const val = decodeURIComponent(raw.split("=")[1] ?? "");
+    const parsed = JSON.parse(val);
+    // Only return if at least one core subject is entered
+    const hasScore = ["chinese", "english", "math"].some((k) => parsed[k] && parsed[k] !== "—");
+    return hasScore ? parsed : null;
   } catch {
     return null;
   }
@@ -48,7 +53,7 @@ function checkChoiceMeetsMinReq(course: Course, dse: DSEScoreData): boolean {
     [dse.elective1Subject]: dse.elective1Grade,
     [dse.elective2Subject]: dse.elective2Grade,
     [dse.elective3Subject]: dse.elective3Grade,
-    [(dse as any).elective4Subject ?? ""]: (dse as any).elective4Grade ?? "—",
+    [dse.elective4Subject ?? ""]: dse.elective4Grade ?? "—",
   };
   const formula = (course as any).scoreFormula;
   if (formula?.minSubjectRequirements) {
@@ -68,7 +73,7 @@ function checkChoiceMeetsMinReq(course: Course, dse: DSEScoreData): boolean {
     if (dse.elective1Subject && dse.elective1Grade && dse.elective1Grade !== "—") electiveCandidates.push(dse.elective1Grade);
     if (dse.elective2Subject && dse.elective2Grade && dse.elective2Grade !== "—") electiveCandidates.push(dse.elective2Grade);
     if (dse.elective3Subject && dse.elective3Grade && dse.elective3Grade !== "—") electiveCandidates.push(dse.elective3Grade);
-    if ((dse as any).elective4Subject && (dse as any).elective4Grade && (dse as any).elective4Grade !== "—") electiveCandidates.push((dse as any).elective4Grade);
+    if (dse.elective4Subject && dse.elective4Grade && dse.elective4Grade !== "—") electiveCandidates.push(dse.elective4Grade);
     if (electiveCandidates.filter(g => gradeAtLeastC(g, minGrade)).length < 2) return false;
   }
   const specificReqs = (course as any).specificSubjectRequirements;
@@ -89,53 +94,135 @@ function computeChoiceScorePct(myScore: number, refScore: number | null | undefi
   return (myScore - Number(refScore)) / Number(refScore) * 100;
 }
 
-// Simplified score computation for Choices page (mirrors Courses.tsx logic)
+// Full score computation for Choices page (mirrors Courses.tsx logic exactly)
+const LV2_EXCLUDE_INSTITUTIONS_CH = ["\u9999\u6e2f\u5927\u5b78", "\u9999\u6e2f\u79d1\u6280\u5927\u5b78", "\u9999\u6e2f\u7406\u5de5\u5927\u5b78"];
+function dseGradeToScoreCh(grade: string, scale?: string): number {
+  if (scale === "8.5") {
+    const map: Record<string, number> = { "5**": 8.5, "5*": 7, "5": 5.5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0, "—": 0 };
+    return map[grade] ?? 0;
+  }
+  const map: Record<string, number> = { "5**": 7, "5*": 6, "5": 5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0, "—": 0 };
+  return map[grade] ?? 0;
+}
 function computeChoiceMyScore(course: Course, dse: DSEScoreData): number | null {
   const formula = (course as any).scoreFormula as any;
   if (!formula) return null;
-  const scale = (course as any).scoringScale === "8.5" ? "8.5" : "7";
-  const gradeMap: Record<string, Record<string, number>> = {
-    "7": { "5**": 7, "5*": 6, "5": 5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0 },
-    "8.5": { "5**": 8.5, "5*": 7, "5": 5.5, "4": 4, "3": 3, "2": 2, "1": 1, "U": 0 },
-  };
-  const gm = gradeMap[scale];
-  const numericGrade = (g: string | number | undefined): number | null => {
-    if (g === undefined || g === null || g === "") return null;
-    const s = String(g);
-    if (gm[s] !== undefined) return gm[s];
-    const n = parseFloat(s);
-    return isNaN(n) ? null : n;
-  };
-  const scoreMap: Record<string, number> = {};
-  const add = (k: string, v: string | number | undefined) => { const n = numericGrade(v); if (n !== null) scoreMap[k] = n; };
-  add("chinese", dse.chinese); add("english", dse.english); add("math", dse.math);
-  if (dse.m1 && dse.m1 !== "—" && dse.m1 !== "") add("m1", dse.m1);
-  if (dse.m2 && dse.m2 !== "—" && dse.m2 !== "") add("m2", dse.m2);
-  if (dse.elective1Subject && dse.elective1Grade) add(dse.elective1Subject, dse.elective1Grade);
-  if (dse.elective2Subject && dse.elective2Grade) add(dse.elective2Subject, dse.elective2Grade);
-  if (dse.elective3Subject && dse.elective3Grade) add(dse.elective3Subject, dse.elective3Grade);
-  if (dse.elective4Subject && dse.elective4Grade) add(dse.elective4Subject, dse.elective4Grade);
-  const excluded: string[] = formula.excluded ?? [];
-  const required: string[] = formula.required ?? [];
-  const weighted: { subject: string; multiplier: number }[] = formula.weighted ?? [];
-  const weightedMap: Record<string, number> = { ...scoreMap };
-  for (const w of weighted) { if (weightedMap[w.subject] !== undefined) weightedMap[w.subject] *= w.multiplier; }
-  const available = Object.entries(weightedMap)
-    .filter(([k]) => !excluded.includes(k))
-    .map(([k, v]) => ({ subject: k, score: v }));
-  const method = formula.method ?? "best5";
-  const n = method === "best4" ? 4 : method === "best6" ? 6 : method === "best7" ? 7 : 5;
-  if (method === "3c2x") {
-    const core = (formula.coreSubjects ?? ["chinese","english","math"]) as string[];
-    const coreScores = core.map((s) => weightedMap[s] ?? 0);
-    const elec = available.filter((x) => !core.includes(x.subject)).sort((a, b) => b.score - a.score).slice(0, 2);
-    return coreScores.reduce((a, b) => a + b, 0) + elec.reduce((a, b) => a + b.score, 0);
+  const scale = (course as any).scoringScale as string | undefined;
+
+  // Step 1: Build raw score map
+  const rawMap: Record<string, number> = {};
+  rawMap["chinese"] = dseGradeToScoreCh(dse.chinese, scale);
+  rawMap["english"] = dseGradeToScoreCh(dse.english, scale);
+  rawMap["math"] = dseGradeToScoreCh(dse.math, scale);
+  if (dse.m1 && dse.m1 !== "—") rawMap["m1"] = dseGradeToScoreCh(dse.m1, scale);
+  if (dse.m2 && dse.m2 !== "—") rawMap["m2"] = dseGradeToScoreCh(dse.m2, scale);
+  [[dse.elective1Subject, dse.elective1Grade],[dse.elective2Subject, dse.elective2Grade],
+   [dse.elective3Subject, dse.elective3Grade],[dse.elective4Subject, dse.elective4Grade]]
+    .forEach(([subj, grade]) => { if (subj) rawMap[subj] = dseGradeToScoreCh(grade, scale); });
+  if (dse.appliedLearningSubject) {
+    const alMap: Record<string, number> = { "達標並表現優異（I）": 3, "達標並表現優異（II）": 4, "達標": 2, "未達標": 0 };
+    rawMap[dse.appliedLearningSubject] = alMap[dse.appliedLearningGrade] ?? 0;
   }
-  const reqItems = required.filter((s) => weightedMap[s] !== undefined).map((s) => ({ subject: s, score: weightedMap[s] }));
-  const optItems = available.filter((x) => !required.includes(x.subject)).sort((a, b) => b.score - a.score);
-  const remaining = Math.max(0, n - reqItems.length);
-  const selected = [...reqItems, ...optItems.slice(0, remaining)];
-  return selected.reduce((a, b) => a + b.score, 0);
+  if (dse.otherLanguage) {
+    const olMap: Record<string, number> = { C2: 5, C1: 4, B2: 3, B1: 2, A2: 1, N1: 5, N2: 4, N3: 3, "第 6 級": 5, "第 5 級": 4, "第 4 級": 3, "第 3 級": 2, "A++": 5, "A+": 5, "A": 4, "B++": 4, "B+": 3, "B": 3, "C": 2, "D": 1, "E": 1 };
+    rawMap[dse.otherLanguage] = olMap[dse.otherLanguageGrade] ?? 0;
+  }
+
+  // Step 2: Lv2 exclusion
+  const shouldExcludeLv2 = formula.excludeLv2 === true ||
+    LV2_EXCLUDE_INSTITUTIONS_CH.includes((course as any).institution ?? "");
+  const scoreMap: Record<string, number> = {};
+  for (const [k, v] of Object.entries(rawMap)) {
+    const rawGrade = (() => {
+      if (k === "chinese") return dse.chinese;
+      if (k === "english") return dse.english;
+      if (k === "math") return dse.math;
+      if (k === "m1") return dse.m1;
+      if (k === "m2") return dse.m2;
+      const pairs = [[dse.elective1Subject, dse.elective1Grade],[dse.elective2Subject, dse.elective2Grade],
+        [dse.elective3Subject, dse.elective3Grade],[dse.elective4Subject, dse.elective4Grade]];
+      const found = pairs.find(([s]) => s === k);
+      return found ? found[1] : null;
+    })();
+    const isLv2OrBelow = rawGrade && ["1", "2", "U"].includes(rawGrade);
+    scoreMap[k] = (shouldExcludeLv2 && isLv2OrBelow) ? 0 : v;
+  }
+
+  // Step 3: Apply weightings
+  const weightedMap: Record<string, number> = { ...scoreMap };
+  for (const w of (formula.weighted ?? [])) {
+    if (weightedMap[w.subject] !== undefined) weightedMap[w.subject] *= w.multiplier;
+  }
+  for (const w of (formula.weightedBestOf ?? [])) {
+    const candidates = (w.subjects as string[]).filter((s: string) => weightedMap[s] !== undefined);
+    if (candidates.length === 0) continue;
+    const best = candidates.reduce((a: string, b: string) => (weightedMap[a] >= weightedMap[b] ? a : b));
+    weightedMap[best] = weightedMap[best] * w.multiplier;
+  }
+
+  // Step 4: Build available pool
+  const excluded = new Set(formula.excluded ?? []);
+  const js4501Special = formula.js4501Special === true;
+  if (js4501Special) { excluded.add("m1"); excluded.add("m2"); }
+  const available = Object.entries(weightedMap).filter(([k]) => !excluded.has(k)).map(([k, v]) => ({ subject: k, score: v }));
+  const required = new Set(formula.required ?? []);
+  const requiredBestOfGroups: string[][] = formula.requiredBestOf ?? [];
+  const requiredBestOfSubjects = new Set(requiredBestOfGroups.flat());
+  const requiredBestOfEntries: Array<{ subject: string; score: number }> = [];
+  for (const group of requiredBestOfGroups) {
+    const groupEntries = available.filter(e => group.includes(e.subject));
+    if (groupEntries.length > 0) {
+      groupEntries.sort((a, b) => b.score - a.score);
+      requiredBestOfEntries.push(groupEntries[0]);
+    }
+  }
+  const requiredEntries = available.filter(e => required.has(e.subject));
+  const allRequiredEntries = [...requiredEntries, ...requiredBestOfEntries];
+  const optionalEntries = available.filter(e => !required.has(e.subject) && !requiredBestOfSubjects.has(e.subject));
+  optionalEntries.sort((a, b) => b.score - a.score);
+
+  // Step 5: Best N / 3C+2X selection
+  const method = formula.method ?? "best5";
+  let selectedEntries: Array<{ subject: string; score: number }> = [];
+  if (method === "best5" || method === "best6" || method === "best7" || method === "best4") {
+    const n = method === "best4" ? 4 : method === "best6" ? 6 : method === "best7" ? 7 : 5;
+    const remainingSlots = Math.max(0, n - allRequiredEntries.length);
+    selectedEntries = [...allRequiredEntries, ...optionalEntries.slice(0, remainingSlots)];
+    if (js4501Special && selectedEntries.length === n) {
+      const m1Score = weightedMap["m1"] ?? 0;
+      const m2Score = weightedMap["m2"] ?? 0;
+      const bestMathExt = Math.max(m1Score, m2Score);
+      if (bestMathExt > 0) {
+        const lastEntry = selectedEntries[n - 1];
+        if (bestMathExt > lastEntry.score) {
+          selectedEntries[n - 1] = { subject: "m1m2_blend", score: lastEntry.score * 0.5 + bestMathExt * 0.5 };
+        }
+      }
+    }
+  } else if (method === "3c2x") {
+    const coreSubjects = new Set(formula.coreSubjects ?? ["chinese", "english", "math"]);
+    const coreEntries = available.filter(e => coreSubjects.has(e.subject));
+    const electiveEntries = available.filter(e => !coreSubjects.has(e.subject)).sort((a, b) => b.score - a.score).slice(0, 2);
+    selectedEntries = [...coreEntries, ...electiveEntries];
+  }
+
+  let total = selectedEntries.reduce((s, e) => s + e.score, 0);
+
+  // Step 6: Bonus subject
+  if (formula.bonusSubject) {
+    const bonus = formula.bonusSubject;
+    const selectedSubjects = new Set(selectedEntries.map(e => e.subject));
+    let bonusScore = 0;
+    if (bonus.subject) {
+      bonusScore = (weightedMap[bonus.subject] ?? 0) * bonus.multiplier;
+    } else {
+      const remaining = available.filter(e => !selectedSubjects.has(e.subject)).sort((a, b) => b.score - a.score);
+      if (remaining.length > 0) bonusScore = remaining[0].score * bonus.multiplier;
+    }
+    total += bonusScore;
+  }
+
+  return Math.round(total * 100) / 100;
 }
 
 const LS_KEY = "jupasearch_choices";
@@ -199,9 +286,14 @@ export default function Choices() {
   const [initialized, setInitialized] = useState(false);
   const [dseScores, setDseScores] = useState<DSEScoreData | null>(null);
 
-  // Load DSE scores from localStorage
+  // Load DSE scores from cookie (same source as Courses.tsx and Compare.tsx)
   useEffect(() => {
     setDseScores(getLocalDSEScores());
+    // Poll every 2s so updates from DSEScores page are picked up
+    const interval = setInterval(() => {
+      setDseScores(getLocalDSEScores());
+    }, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   // Initialize from localStorage after auth is determined

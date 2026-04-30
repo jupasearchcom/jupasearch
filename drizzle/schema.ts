@@ -110,6 +110,7 @@ export const courses = mysqlTable("courses", {
     js4501Special?: boolean; // JS4501/JS4502 special M1/M2 blending rule
     excludeLv2?: boolean; // force exclude Lv2 subjects regardless of institution
     weightedBestOf?: { subjects: string[]; multiplier: number }[]; // only best subject in group gets multiplier
+    requiredBestOf?: string[][]; // each inner array = group of subjects; best 1 in each group is required
     bonusSubject?: { multiplier: number; subject?: string }; // bonus score for N+1 subject
   }>(),
   // Scoring scale: "8.5" or "7" (default)

@@ -33,6 +33,36 @@ const JAPANESE_GRADES = ["N1", "N2", "N3", "—"] as const;
 const KOREAN_GRADES = ["第 6 級", "第 5 級", "第 4 級", "第 3 級", "—"] as const;
 const URDU_GRADES = ["A++", "A+", "A", "B++", "B+", "B", "C", "D", "E", "—"] as const;
 
+// Elective subject codes (language-independent, used as values in scoreFormula)
+export const ELECTIVE_SUBJECT_CODES = [
+  "physics",
+  "chemistry",
+  "biology",
+  "combined_sci_phy_chem",
+  "combined_sci_chem_bio",
+  "combined_sci_phy_bio",
+  "integrated_science",
+  "ict",
+  "dat",
+  "hmsc",
+  "tal_clothing",
+  "tal_food",
+  "bafs_accounting",
+  "bafs_business",
+  "bafs",
+  "economics",
+  "geography",
+  "history",
+  "chinese_history",
+  "ethics",
+  "chinese_lit",
+  "english_lit",
+  "tourism",
+  "va",
+  "music",
+  "pe",
+] as const;
+
 const ELECTIVE_SUBJECTS_ZH_TW = [
   "物理",
   "化學",
@@ -55,7 +85,7 @@ const ELECTIVE_SUBJECTS_ZH_TW = [
   "中國歷史",
   "倫理與宗教",
   "中國文學",
-  "英國文學",
+  "英語文學",
   "旅遊與款待",
   "視覺藝術",
   "音樂",
@@ -84,7 +114,7 @@ const ELECTIVE_SUBJECTS_ZH_CN = [
   "中国历史",
   "伦理与宗教",
   "中国文学",
-  "英国文学",
+  "英语文学",
   "旅游与款待",
   "视觉艺术",
   "音乐",
@@ -263,7 +293,9 @@ export default function DSEScores() {
   // Fetch applied learning subjects from backend (set by admin)
   const { data: appliedLearningSubjects = [] } = trpc.settings.getAppliedLearningSubjects.useQuery();
 
-  const electives = language === "zh-CN" ? ELECTIVE_SUBJECTS_ZH_CN : language === "en" ? ELECTIVE_SUBJECTS_EN : ELECTIVE_SUBJECTS_ZH_TW;
+  // Build elective options: code as value, localized name as display
+  const electiveLabels = language === "zh-CN" ? ELECTIVE_SUBJECTS_ZH_CN : language === "en" ? ELECTIVE_SUBJECTS_EN : ELECTIVE_SUBJECTS_ZH_TW;
+  const electiveOptions = ELECTIVE_SUBJECT_CODES.map((code, i) => ({ code, label: electiveLabels[i] ?? code }));
 
   // Use language codes as values (language-independent) to avoid mismatch when UI language changes
   const OTHER_LANG_CODES = ["french", "german", "japanese", "korean", "spanish", "urdu"] as const;
@@ -445,18 +477,20 @@ export default function DSEScores() {
                 .filter((m) => m !== n)
                 .map((m) => scores[`elective${m}Subject` as keyof DSEScoreData])
                 .filter((s) => s && s !== "none" && s !== "");
-              const availableElectives = electives.filter((s) => !otherSelected.includes(s));
+              const availableElectiveOptions = electiveOptions.filter((o) => !otherSelected.includes(o.code));
+              // Find label for currently selected code
+              const currentLabel = electiveOptions.find((o) => o.code === scores[subjectKey])?.label ?? scores[subjectKey];
               return (
                 <div key={n} className="flex items-center gap-3">
                   <Label className="w-12 text-sm flex-shrink-0 text-muted-foreground">#{n}</Label>
                   <Select value={scores[subjectKey]} onValueChange={(v) => handleChange(subjectKey, v)}>
                     <SelectTrigger className="flex-1">
-                      <SelectValue placeholder={t.selectSubject[l]} />
+                      <SelectValue placeholder={t.selectSubject[l]}>{currentLabel || undefined}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">—</SelectItem>
-                      {availableElectives.map((s) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      {availableElectiveOptions.map((o) => (
+                        <SelectItem key={o.code} value={o.code}>{o.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

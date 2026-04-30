@@ -257,3 +257,13 @@
 ## Bug Fix Batch 18 (2026-04-27)
 - [x] 1. CourseDetail.tsx 頂部 badge 移除「去年只取錄組別A」標示，只保留基本資料表格中的「是/否」顯示
 - [x] 2. Choices.tsx 志願模擬百分數：修復 medianRef 計算邏輯，與 Courses.tsx 完全一致（優先 scoringMethodChanged+expectedScore，其次 lastYearMedian）；桌面版和手機版同步修復
+
+## Bug Fix Batch 19 (2026-04-29)
+- [x] Bug 1: Choices.tsx 百分數仍顯示「請輸入成績」 — DSE 改從 cookie 讀取（與 Courses.tsx 一致），computeChoiceMyScore 補全 requiredBestOf/weightedBestOf/excludeLv2/js4501Special/bonusSubject
+- [x] Bug 2: Admin 儲存時刪除 requiredBestOf 欄位 — routers.ts scoreFormula Zod schema 補加 requiredBestOf、weightedBestOf、js4501Special、excludeLv2、bonusSubject
+- [x] Bug 3: 選修科目代號不完整 — DSEScores.tsx 改用英文代號作為 value（26個），Courses.tsx/Compare.tsx/routers.ts 同步更新科目映射，drizzle/schema.ts 補全 requiredBestOf 類型
+
+## Bug Fix Batch 19 (2026-04-29)
+- [x] Bug 1: Choices.tsx 百分數仍顯示「請輸入成績」 — DSE 改從 cookie 讀取（與 Courses.tsx 一致），computeChoiceMyScore 補全 requiredBestOf/weightedBestOf/excludeLv2/js4501Special/bonusSubject
+- [x] Bug 2: Admin 儲存時刪除 requiredBestOf 欄位 — routers.ts scoreFormula Zod schema 補加 requiredBestOf、weightedBestOf、js4501Special、excludeLv2、bonusSubject
+- [x] Bug 3: 選修科目代號不完整 — DSEScores.tsx 改用英文代號作為 value（26個），Courses.tsx/Compare.tsx/routers.ts 同步更新科目映射，drizzle/schema.ts 補全 requiredBestOf 類型
