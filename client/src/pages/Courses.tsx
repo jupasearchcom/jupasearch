@@ -324,12 +324,18 @@ function checkMeetsMinRequirement(course: Course, dse: DSEScoreData | null): boo
   }
 
   // Build user subject map for requirement checks
+  // Normalize elective subject codes to English (for backward compatibility with old Chinese names)
+  const normalizedElective1 = normalizeElectiveCode(dse.elective1Subject);
+  const normalizedElective2 = normalizeElectiveCode(dse.elective2Subject);
+  const normalizedElective3 = normalizeElectiveCode(dse.elective3Subject);
+  const normalizedElective4 = normalizeElectiveCode((dse as any).elective4Subject ?? "");
   const userSubjects: Record<string, string> = {
     chinese: dse.chinese, english: dse.english, math: dse.math,
-    [dse.elective1Subject]: dse.elective1Grade,
-    [dse.elective2Subject]: dse.elective2Grade,
-    [dse.elective3Subject]: dse.elective3Grade,
-    [(dse as any).elective4Subject ?? ""]: (dse as any).elective4Grade ?? "—",
+    m1: dse.m1, m2: dse.m2,
+    [normalizedElective1]: dse.elective1Grade,
+    [normalizedElective2]: dse.elective2Grade,
+    [normalizedElective3]: dse.elective3Grade,
+    [normalizedElective4]: (dse as any).elective4Grade ?? "—",
   };
 
   // Check legacy scoreFormula.minSubjectRequirements
@@ -365,7 +371,9 @@ function checkMeetsMinRequirement(course: Course, dse: DSEScoreData | null): boo
     for (const group of specificReqs.groups) {
       const minGradeStr = String(group.minGrade);
       const anyMeets = (group.subjects as string[]).some((subj) => {
-        const userGrade = userSubjects[subj];
+        // Normalize subject code in case it's stored as old Chinese name
+        const normalizedSubj = normalizeElectiveCode(subj);
+        const userGrade = userSubjects[normalizedSubj];
         return userGrade && gradeAtLeast(userGrade, minGradeStr);
       });
       if (!anyMeets) return false;
@@ -383,6 +391,19 @@ function getMinReqFailReasons(course: Course, dse: DSEScoreData): string[] {
   const subjectLabel: Record<string, string> = {
     chinese: "中文", english: "英文", math: "數學",
     m1: "M1", m2: "M2",
+    physics: "物理", chemistry: "化學", biology: "生物",
+    combined_sci_phy_chem: "組合科學（物理、化學）",
+    combined_sci_chem_bio: "組合科學（化學、生物）",
+    combined_sci_phy_bio: "組合科學（物理、生物）",
+    integrated_science: "綜合科學", ict: "資訊及通訊科技", dat: "設計與應用科技",
+    hmsc: "健康管理與社會關懷", tal_clothing: "科技與生活（服裝、成衣與紡織）",
+    tal_food: "科技與生活（食物科學與科技）",
+    bafs_accounting: "企業、會計與財務概論（會計選修部分）",
+    bafs_business: "企業、會計與財務概論（商業管理選修部分）",
+    bafs: "企業、會計與財務概論",
+    economics: "經濟", geography: "地理", history: "歷史", chinese_history: "中國歷史",
+    ethics: "倫理與宗教", chinese_lit: "中國文學", english_lit: "英語文學",
+    tourism: "旅遊與款待", va: "視覺藝術", music: "音樂", pe: "體育",
   };
   if (req && req.length >= 3) {
     const chineseReq = reqMap[req[0]] ?? req[0];
@@ -392,12 +413,17 @@ function getMinReqFailReasons(course: Course, dse: DSEScoreData): string[] {
     if (!gradeAtLeast(dse.english, englishReq)) reasons.push(`英文：需要 ${englishReq} 級，您為 ${dse.english}`);
     if (!gradeAtLeast(dse.math, mathReq)) reasons.push(`數學：需要 ${mathReq} 級，您為 ${dse.math}`);
   }
+  const normalizedElective1 = normalizeElectiveCode(dse.elective1Subject);
+  const normalizedElective2 = normalizeElectiveCode(dse.elective2Subject);
+  const normalizedElective3 = normalizeElectiveCode(dse.elective3Subject);
+  const normalizedElective4 = normalizeElectiveCode((dse as any).elective4Subject ?? "");
   const userSubjects: Record<string, string> = {
     chinese: dse.chinese, english: dse.english, math: dse.math,
-    [dse.elective1Subject]: dse.elective1Grade,
-    [dse.elective2Subject]: dse.elective2Grade,
-    [dse.elective3Subject]: dse.elective3Grade,
-    [(dse as any).elective4Subject ?? ""]: (dse as any).elective4Grade ?? "—",
+    m1: dse.m1, m2: dse.m2,
+    [normalizedElective1]: dse.elective1Grade,
+    [normalizedElective2]: dse.elective2Grade,
+    [normalizedElective3]: dse.elective3Grade,
+    [normalizedElective4]: (dse as any).elective4Grade ?? "—",
   };
   const formula = (course as any).scoreFormula;
   if (formula?.minSubjectRequirements) {
@@ -429,11 +455,17 @@ function getMinReqFailReasons(course: Course, dse: DSEScoreData): string[] {
     for (const group of specificReqs.groups) {
       const minGradeStr = String(group.minGrade);
       const anyMeets = (group.subjects as string[]).some((subj) => {
-        const userGrade = userSubjects[subj];
+        const normalizedSubj = normalizeElectiveCode(subj);
+        const userGrade = userSubjects[normalizedSubj];
         return userGrade && gradeAtLeast(userGrade, minGradeStr);
       });
       if (!anyMeets) {
-        const labels = (group.subjects as string[]).map((s: string) => subjectLabel[s] ?? s).join("/");
+        const labels = (group.subjects as string[])
+          .map((s: string) => {
+            const normalized = normalizeElectiveCode(s);
+            return subjectLabel[normalized] ?? s;
+          })
+          .join("/");
         reasons.push(`${labels}：需要其中一科達 ${minGradeStr} 級`);
       }
     }
